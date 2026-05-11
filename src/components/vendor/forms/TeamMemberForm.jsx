@@ -38,7 +38,7 @@ const TeamMemberForm = ({
       }
     };
 
-  fetchCities();
+    fetchCities();
   }, []);
 
   return (
@@ -74,6 +74,7 @@ const TeamMemberForm = ({
               placeholder="Enter Phone Number"
               required
               isInvalid={!!errors.mobileNumber}
+              maxLength={10}
             />
             <Form.Control.Feedback type="invalid">
               {errors.mobileNumber}

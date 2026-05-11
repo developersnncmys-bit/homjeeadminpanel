@@ -1,6 +1,6 @@
 // components/forms/VendorForm.jsx
-import React, {useState, useEffect } from "react";
-import { Row, Col, Form , Spinner} from "react-bootstrap";
+import React, { useState, useEffect } from "react";
+import { Row, Col, Form, Spinner } from "react-bootstrap";
 import { FaMapMarkerAlt } from "react-icons/fa";
 import { BASE_URL } from "../../../utils/config";
 import axios from "axios";
@@ -74,6 +74,7 @@ const VendorForm = ({
               placeholder="Enter Phone Number"
               required
               isInvalid={!!errors.mobileNumber}
+              maxLength={10}
             />
             <Form.Control.Feedback type="invalid">
               {errors.mobileNumber}
