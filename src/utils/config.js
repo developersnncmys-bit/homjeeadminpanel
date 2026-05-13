@@ -1,5 +1,4 @@
 // const BASE_URL = "http://localhost:9000/api";
 const BASE_URL = "https://homjee-backend-jeyp.onrender.com/api";
-// const BASE_URL = "http://192.168.1.80:9000/api"
 
 export { BASE_URL };

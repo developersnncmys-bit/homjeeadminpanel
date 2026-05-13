@@ -54,6 +54,7 @@ const VendorList = ({
   onPageChange,
 }) => {
   if (loading) {
+    console.log("Rendering VendorList with vendors:", vendors);
     return (
       <div
         style={{
@@ -146,8 +147,11 @@ const VendorList = ({
               }}
               onClick={() => onVendorSelect(vendor)}
             >
-              <td>{vendor.name}</td>
-              <td>{vendor.serviceArea}</td>
+              <td>
+                {vendor.name}
+                <p>☎ {vendor.phone}</p>
+              </td>
+              <td>{vendor.serviceArea} </td>
               <td>{vendor.category}</td>
               <td>{vendor.city}</td>
               <td>
