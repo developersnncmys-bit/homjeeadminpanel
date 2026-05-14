@@ -10,6 +10,7 @@ import {
 } from "react-icons/fa";
 import { Button } from "react-bootstrap";
 import { BASE_URL } from "../utils/config";
+import { resolveServiceCity } from "../utils/serviceCity";
 import EditLeadModal from "./EditLeadModal";
 import RescheduleTimePickerModal from "./RescheduleTimePickerModal";
 import AmountChangeCard from "./AmountChangeCard";
@@ -542,7 +543,9 @@ const OngoingLeadDetails = () => {
   // dropped client-side as a final safety net.
   const fetchCityVendors = async () => {
     try {
-      const city = booking?.address?.city || "";
+      // Canonicalize the locality (e.g. Pimpri-Chinchwad -> Pune) so vendors
+      // registered under any alias of the service city are listed.
+      const city = resolveServiceCity(booking?.address?.city || "");
       if (!city) {
         setCityVendors([]);
         return;
@@ -2448,7 +2451,7 @@ const OngoingLeadDetails = () => {
                       <option value="">
                         {cityVendorsLoading
                           ? "Loading vendors..."
-                          : `Select a vendor (${cityVendors.length} in ${booking?.address?.city || "this city"})`}
+                          : `Select a vendor (${cityVendors.length} in ${resolveServiceCity(booking?.address?.city) || "this city"})`}
                       </option>
                       {cityVendors.map((v) => {
                         const alreadyNotified = notifiedVendors.some(

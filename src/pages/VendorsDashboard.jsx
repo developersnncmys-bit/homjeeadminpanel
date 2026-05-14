@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { BASE_URL } from "../utils/config";
 import { normalizeMember } from "../utils/helpers";
+import { resolveServiceCity } from "../utils/serviceCity";
 import VendorList from "../components/vendor/VendorList";
 import VendorModal from "../components/vendor/modals/VendorModal";
 import AddressPickerModal from "../components/vendor/modals/AddressPickerModal";
@@ -141,7 +142,7 @@ const VendorsDashboard = () => {
           limit: PAGE_SIZE,
 
           // ✅ filters
-          city: overrideFilters.city ?? city,
+          city: resolveServiceCity(overrideFilters.city ?? city),
           serviceType: overrideFilters.service ?? service,
           search: overrideFilters.search ?? search,
         },

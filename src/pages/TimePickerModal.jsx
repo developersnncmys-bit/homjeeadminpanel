@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { FaTimes } from "react-icons/fa";
 import { BASE_URL } from "../utils/config";
+import { resolveServiceCity } from "../utils/serviceCity";
 
 /* ------------------ DATE HELPERS ------------------ */
 
@@ -29,6 +30,16 @@ const nextNDays = (n) => {
   return out;
 };
 
+// "01:00 PM" -> minutes since midnight, for sorting slots chronologically.
+const slotToMinutes = (t) => {
+  if (!t || typeof t !== "string") return 0;
+  const [hhmm, mer] = t.split(" ");
+  let [h, m] = hhmm.split(":").map(Number);
+  if (mer === "PM" && h !== 12) h += 12;
+  if (mer === "AM" && h === 12) h = 0;
+  return h * 60 + m;
+};
+
 /* ------------------ COMPONENT ------------------ */
 
 const TimePickerModal = ({
@@ -44,6 +55,7 @@ const TimePickerModal = ({
   const [selectedDate, setSelectedDate] = useState(yyyymmdd(dates[0]));
   const [selectedTime, setSelectedTime] = useState("");
   const [availableTimes, setAvailableTimes] = useState([]);
+  const [unavailableTimes, setUnavailableTimes] = useState([]);
   const [loading, setLoading] = useState(false);
 const lat = coordinates?.lat;
 const lng = coordinates?.lng;
@@ -66,12 +78,14 @@ useEffect(() => {
     (!Array.isArray(packageId) || packageId.length === 0)
   ) {
     setAvailableTimes([]);
+    setUnavailableTimes([]);
     return;
   }
 
   const fetchSlots = async () => {
     setLoading(true);
     setAvailableTimes([]);
+    setUnavailableTimes([]);
     setSelectedTime("");
 
     try {
@@ -83,13 +97,14 @@ useEffect(() => {
               date: selectedDate,
               lat,
               lng,
-              city
+              city: resolveServiceCity(city),
             }
           : {
               serviceType: "house_painting",
               date: selectedDate,
               lat,
               lng,
+              city: resolveServiceCity(city),
             };
 
       console.log("🟢 SLOT API PAYLOAD:", payload);
@@ -104,9 +119,11 @@ useEffect(() => {
       console.log("🟢 SLOT API RESPONSE:", data);
 
       setAvailableTimes(data?.success ? data.slots || [] : []);
+      setUnavailableTimes(data?.success ? data.unavailableSlots || [] : []);
     } catch (err) {
       console.error("Slot fetch error:", err);
       setAvailableTimes([]);
+      setUnavailableTimes([]);
     } finally {
       setLoading(false);
     }
@@ -159,6 +176,14 @@ useEffect(() => {
 
   /* ------------------ UI ------------------ */
 
+  // Merge available + unavailable into one chronological grid. Unavailable
+  // slots render as disabled tiles so the admin sees the slot exists but
+  // can't pick it — same behaviour as the customer website.
+  const allSlots = [
+    ...availableTimes.map((t) => ({ time: t, disabled: false })),
+    ...unavailableTimes.map((t) => ({ time: t, disabled: true })),
+  ].sort((a, b) => slotToMinutes(a.time) - slotToMinutes(b.time));
+
   return (
     <div style={styles.overlay}>
       <div style={styles.sheet}>
@@ -193,23 +218,25 @@ useEffect(() => {
         <div style={{ padding: 16 }}>
           {loading ? (
             <div style={styles.msg}>Loading slots…</div>
-          ) : availableTimes.length === 0 ? (
+          ) : allSlots.length === 0 ? (
             <div style={styles.msg}>No slots available for this date</div>
           ) : (
             <div style={styles.grid}>
-              {availableTimes.map((t) => (
+              {allSlots.map(({ time, disabled }) => (
                 <button
-                  key={t}
-                  onClick={() => setSelectedTime(t)}
+                  key={time}
+                  disabled={disabled}
+                  onClick={disabled ? undefined : () => setSelectedTime(time)}
                   style={{
                     ...styles.timeBtn,
+                    ...(disabled ? styles.timeBtnDisabled : {}),
                     border:
-                      selectedTime === t
+                      selectedTime === time
                         ? "2px solid #111"
                         : "1px solid #ddd",
                   }}
                 >
-                  {t}
+                  {time}
                 </button>
               ))}
             </div>
@@ -290,6 +317,12 @@ const styles = {
     cursor: "pointer",
     fontWeight: 600,
     fontSize: 12, // ✅ smaller time font
+  },
+  timeBtnDisabled: {
+    background: "#f3f3f3",
+    color: "#bbb",
+    cursor: "not-allowed",
+    textDecoration: "line-through",
   },
   msg: {
     textAlign: "center",
