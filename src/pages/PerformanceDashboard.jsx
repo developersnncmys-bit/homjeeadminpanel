@@ -989,7 +989,10 @@ const metricLabels = {
   avgGSV: "Avg. GSV",
   rating: "Rating",
   strikes: "Strikes",
-  responsePercentage: "Response %",
+  // Deep Cleaning now reports On-Time % (started within 30 min of slot)
+  // instead of Response %, since leads broadcast to all vendors make
+  // response rate statistically meaningless.
+  responsePercentage: "On-Time %",
   cancellationPercentage: "Cancellation %",
 };
 
@@ -1173,10 +1176,14 @@ const PerformanceDashboard = () => {
         setAcceptedHP(data.housePainting.hiringPercentage);
 
         setDeepCleaningLeads(data.deepCleaning.totalLeads);
-        setSurveyPctDeepCleaning(data.deepCleaning.responsePercentage || 0);
+        // DC now shows On-Time % instead of Response %. Backend returns
+        // both; we point the dashboard at the new field.
+        setSurveyPctDeepCleaning(
+          data.deepCleaning.onTimeStartedPercentage ?? 0,
+        );
         setCancellationPctDeepCleaning(data.deepCleaning.cancellationPercentage);
         setAvgGsvDeepCleaning(data.deepCleaning.averageGsv);
-        setAcceptedDC(data.deepCleaning.responsePercentage);
+        setAcceptedDC(data.deepCleaning.onTimeStartedPercentage ?? 0);
 
         // Set counts for display
         setStartedHP(
@@ -1224,7 +1231,8 @@ const PerformanceDashboard = () => {
             jobsStarted: v.survey,
             hirings: v.hired,
             cancelled: v.cancelled,
-            responseRate: `${v.responseRate}%`,
+            // DC: show On-Time % instead of Response %.
+            responseRate: `${v.onTimeStartedRate ?? 0}%`,
             projectsCompleted: v.hired,
             completionRate: `${v.surveyRate}%`,
             cancellationRate: `${v.cancellationRate}%`,

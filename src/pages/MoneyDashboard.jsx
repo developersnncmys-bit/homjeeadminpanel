@@ -53,6 +53,11 @@ const [citiesLoading, setCitiesLoading] = useState(false);
   const [pendingAmount, setPendingAmount] = useState(0);
   const [cashAmount, setCashAmount] = useState(0);
   const [onlineAmount, setOnlineAmount] = useState(0);
+  // Date-independent total of remaining receivables on all ongoing leads
+  // (booking payment done, final payment pending). Distinct from
+  // pendingAmount, which respects the current date filter.
+  const [amountYetToPayTotal, setAmountYetToPayTotal] = useState(0);
+  const [ongoingLeadsCount, setOngoingLeadsCount] = useState(0);
 
   /* ======================================================
         HELPERS
@@ -442,6 +447,20 @@ const [citiesLoading, setCitiesLoading] = useState(false);
       setPayments([]);
     }
   };
+  const fetchAmountYetToPayTotal = async () => {
+    try {
+      const res = await axios.get(
+        `${BASE_URL}/bookings/amount-yet-to-pay`,
+      );
+      setAmountYetToPayTotal(Number(res?.data?.amountYetToPay || 0));
+      setOngoingLeadsCount(Number(res?.data?.ongoingLeads || 0));
+    } catch (err) {
+      console.error("Error fetching Amount Yet to be Paid:", err);
+      setAmountYetToPayTotal(0);
+      setOngoingLeadsCount(0);
+    }
+  };
+
   const fetchOverallIncomfromcoins = async () => {
     try {
       const res = await axios.get(`${BASE_URL}/wallet/overall-coin-sold`);
@@ -548,6 +567,13 @@ const [citiesLoading, setCitiesLoading] = useState(false);
   useEffect(() => {
     fetchOverallIncomfromcoins();
   }, [manualPayments]);
+
+  // Date-independent receivables — load once and refresh on payment data
+  // change. Spec: this is a running total of "all ongoing leads", not a
+  // periodised metric.
+  useEffect(() => {
+    fetchAmountYetToPayTotal();
+  }, [payments, manualPayments]);
 
   /* ======================================================
         TOTALS (UPDATED)
@@ -1136,6 +1162,15 @@ const [citiesLoading, setCitiesLoading] = useState(false);
               Amount Yet to Be Collected: ₹
               {Number(pendingAmount || 0).toLocaleString()}
             </h6>
+            <p
+              style={{ fontSize: 12, color: "#b26b00", marginBottom: 4 }}
+            >
+              Amount Yet to Be Paid (all ongoing leads): ₹
+              {Number(amountYetToPayTotal || 0).toLocaleString()}{" "}
+              <span style={{ color: "#6c757d" }}>
+                ({ongoingLeadsCount} ongoing)
+              </span>
+            </p>
             <p style={{ fontSize: 12 }}>Coins Sold: ₹{overallCoinSold}</p>
             <p style={{ fontSize: 12 }}>
               Income from Coins: ₹
