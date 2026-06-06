@@ -2605,8 +2605,14 @@ export default function EditEnquiryModal({
       }
 
       if (field === "price") {
-        // generally disabled, but keep safe
-        setPricingMode("catalog");
+        // "manual" instead of "catalog": the DeepList-sync effect (deps
+        // include pricingMode) rebuilds every service.price from the
+        // catalog defaults whenever pricingMode === "catalog". Flipping
+        // to "catalog" here would immediately stomp the user's just-typed
+        // price back to pkg.totalAmount. "manual" still marks the row as
+        // user-edited (hasAnyEdit covers it via current !== original) but
+        // doesn't trigger the rebuild.
+        setPricingMode("manual");
         const newPrice = Number(value || 0);
         const diff = newPrice - oldPrice;
         if (diff !== 0 && !initialLoadRef.current) {
@@ -2676,8 +2682,14 @@ export default function EditEnquiryModal({
       return;
     }
 
-    // ✅ any edit removes discount
-    setPricingMode("catalog");
+    // "manual" instead of "catalog". setPricingMode("catalog") used to
+    // run here, but the DeepList-sync effect (deps include pricingMode)
+    // rebuilds services from catalog and recomputes serverFinalTotal
+    // as their sum whenever pricingMode is "catalog" — so this manual
+    // override was being overwritten by the catalog sum on the very
+    // next render. "manual" doesn't trigger that branch and the
+    // hasAnyEdit indicator still flips on via `current !== original`.
+    setPricingMode("manual");
 
     setServerFinalTotal(manualValue);
     if (!leadMode) setServerBookingAmount(Math.round(manualValue * 0.2));
