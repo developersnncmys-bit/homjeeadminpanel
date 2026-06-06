@@ -1631,7 +1631,7 @@ const PerformanceDashboard = () => {
             </span>
             <br />
             <span style={{ color: "#6c757d" }}>
-              Response(
+              On-Time(
               {Math.round((surveyPctDeepCleaning / 100) * deepCleaningLeads)})
             </span>
           </div>
@@ -1739,7 +1739,7 @@ const PerformanceDashboard = () => {
                 <th>Total Leads</th>
                 <th>Jobs Started</th>
                 <th>Leads Responded</th>
-                <th>Lead Response %</th>
+                <th>On-Time %</th>
                 <th>Projects Completed</th>
                 <th>Completion %</th>
                 <th>Cancelled</th>

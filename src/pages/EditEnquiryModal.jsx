@@ -3293,7 +3293,11 @@ export default function EditEnquiryModal({
                     type="number"
                     value={s.price}
                     onChange={(e) => onServiceChange(idx, "price", e.target.value)}
-                    disabled={true}
+                    // Was hardcoded `disabled={true}` so admins couldn't
+                    // change the amount when editing a pending enquiry,
+                    // even though every other field in the row honoured
+                    // canEditServices. Aligned with the row's other inputs.
+                    disabled={!canEditServices}
                   />
                 </Col>
 
