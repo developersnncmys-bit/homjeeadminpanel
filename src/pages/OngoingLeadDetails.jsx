@@ -584,10 +584,13 @@ const OngoingLeadDetails = () => {
   useEffect(() => {
     try {
       if (!booking) return;
-      if (!isNewLead) return;
 
+      // Always fetch the invited-vendor history — it should remain visible
+      // even after a vendor accepts, so admin can audit who was offered
+      // the lead. The "Notify another vendor" picker (which uses
+      // cityVendors) is the only piece that's new-lead-only.
       fetchNotifiedVendors();
-      fetchCityVendors();
+      if (isNewLead) fetchCityVendors();
     } catch (err) {
       console.error("notified-vendors effect error:", err);
     }
@@ -614,7 +617,30 @@ const OngoingLeadDetails = () => {
       });
 
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.message || "Failed to notify vendor");
+      if (!res.ok) {
+        // 409 with alternativeVendors → backend rejected because the
+        // chosen vendor is busy at this slot, and is suggesting others
+        // who ARE free. Surface those so admin can pick without
+        // bouncing back to the lead screen.
+        if (
+          res.status === 409 &&
+          Array.isArray(data?.alternativeVendors) &&
+          data.alternativeVendors.length
+        ) {
+          const list = data.alternativeVendors
+            .map(
+              (v, i) =>
+                `${i + 1}. ${v.name || "(no name)"} — ${v.phone || ""} (${v.coinBalance ?? 0} coins)`,
+            )
+            .join("\n");
+          alert(
+            `${data.message}\n\nVendors free at this slot:\n${list}\n\nPick one from the dropdown and try again.`,
+          );
+        } else {
+          alert(data?.message || "Failed to notify vendor");
+        }
+        return;
+      }
 
       setSelectedCityVendor("");
       await fetchNotifiedVendors();
@@ -2275,18 +2301,141 @@ const OngoingLeadDetails = () => {
                     {!notifiedLoading &&
                       !notifiedError &&
                       notifiedVendors.length === 0 && (
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#6c757d",
-                            background: "#f8f9fa",
-                            border: "1px dashed #dee2e6",
-                            padding: "10px 12px",
-                            borderRadius: 8,
-                          }}
-                        >
-                          No vendors have been notified for this lead yet.
-                        </div>
+                        <>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: "#6c757d",
+                              marginBottom: 8,
+                            }}
+                          >
+                            No vendors notified yet — showing nearest available
+                            vendors in{" "}
+                            {resolveServiceCity(booking?.address?.city) ||
+                              "this city"}
+                            .
+                          </div>
+
+                          {cityVendorsLoading && (
+                            <div
+                              style={{
+                                fontSize: 12,
+                                color: "#6c757d",
+                                padding: "8px 0",
+                              }}
+                            >
+                              Loading nearest vendors...
+                            </div>
+                          )}
+
+                          {!cityVendorsLoading && cityVendors.length === 0 && (
+                            <div
+                              style={{
+                                fontSize: 12,
+                                color: "#6c757d",
+                                background: "#f8f9fa",
+                                border: "1px dashed #dee2e6",
+                                padding: "10px 12px",
+                                borderRadius: 8,
+                              }}
+                            >
+                              No nearest vendors found for this lead.
+                            </div>
+                          )}
+
+                          {!cityVendorsLoading && cityVendors.length > 0 && (
+                            <div
+                              style={{
+                                maxHeight: 280,
+                                overflowY: "auto",
+                                paddingRight: 4,
+                              }}
+                            >
+                              {cityVendors.map((v) => {
+                                const vName =
+                                  v?.vendor?.vendorName || "Unnamed Vendor";
+                                const vPhoto = v?.vendor?.profileImage;
+                                const vSubtitle =
+                                  v?.vendor?.serviceType ||
+                                  v?.vendor?.city ||
+                                  "";
+                                return (
+                                  <div
+                                    key={v._id}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 12,
+                                      padding: "10px 8px",
+                                      border: "1px solid #eef0f3",
+                                      borderRadius: 10,
+                                      marginBottom: 8,
+                                      background: "#fff",
+                                    }}
+                                  >
+                                    <img
+                                      src={vPhoto || vendorImg}
+                                      alt={vName}
+                                      onError={(e) => {
+                                        e.currentTarget.src = vendorImg;
+                                      }}
+                                      style={{
+                                        width: 44,
+                                        height: 44,
+                                        borderRadius: "50%",
+                                        objectFit: "cover",
+                                        flexShrink: 0,
+                                      }}
+                                    />
+
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div
+                                        style={{
+                                          fontSize: 13,
+                                          fontWeight: 700,
+                                          color: "#111",
+                                          whiteSpace: "nowrap",
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                        }}
+                                        title={vName}
+                                      >
+                                        {vName}
+                                      </div>
+                                      {vSubtitle && (
+                                        <div
+                                          style={{
+                                            fontSize: 11,
+                                            color: "#8a8f98",
+                                            textTransform: "capitalize",
+                                          }}
+                                        >
+                                          {vSubtitle}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-danger"
+                                      style={{
+                                        borderRadius: 8,
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        whiteSpace: "nowrap",
+                                      }}
+                                      onClick={() =>
+                                        navigate(`/vendor-details/${v._id}`)
+                                      }
+                                    >
+                                      View Profile
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </>
                       )}
 
                     {notifiedVendors.length > 0 && (
@@ -2653,6 +2802,176 @@ const OngoingLeadDetails = () => {
                     </p>
                   </div>
                 </div>
+                </div>
+              )}
+
+              {/* Notified vendor history — visible in ongoing mode too so
+                  admin can see who else was invited. Read-only (the
+                  "notify another vendor" picker only renders for new
+                  leads, since broadcasting after acceptance is a
+                  different flow handled by Change Vendor). */}
+              {!isNewLead && notifiedVendors.length > 0 && (
+                <div
+                  className="card"
+                  style={{
+                    borderRadius: 8,
+                    border: "1px solid #e0e0e0",
+                    marginTop: 14,
+                  }}
+                >
+                  <div className="card-body">
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: 10,
+                      }}
+                    >
+                      <h6 className="fw-bold mb-0" style={{ fontSize: 14 }}>
+                        Vendors Notified
+                      </h6>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: "4px 10px",
+                          borderRadius: 999,
+                          border: "1px solid #e9ecef",
+                          background: "#f8f9fa",
+                          color: "#6c757d",
+                        }}
+                      >
+                        {notifiedLoading
+                          ? "Loading..."
+                          : `${notifiedVendors.length} Vendor${notifiedVendors.length === 1 ? "" : "s"}`}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        maxHeight: 280,
+                        overflowY: "auto",
+                        paddingRight: 4,
+                      }}
+                    >
+                      {notifiedVendors.map((nv) => (
+                        <div
+                          key={nv.vendorId}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            padding: "10px 8px",
+                            border: "1px solid #eef0f3",
+                            borderRadius: 10,
+                            marginBottom: 8,
+                            background: "#fff",
+                          }}
+                        >
+                          <img
+                            src={nv.profileImage || vendorImg}
+                            alt={nv.name}
+                            onError={(e) => {
+                              e.currentTarget.src = vendorImg;
+                            }}
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: "50%",
+                              objectFit: "cover",
+                              flexShrink: 0,
+                            }}
+                          />
+
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: "#111",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                              title={nv.name}
+                            >
+                              {nv.name}
+                            </div>
+
+                            {nv.invitedAt && (
+                              <div style={{ fontSize: 11, color: "#8a8f98" }}>
+                                Notified{" "}
+                                {new Date(nv.invitedAt)
+                                  .toLocaleString("en-GB", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                  })
+                                  .replace(",", "")
+                                  .replace(/\b(am|pm)\b/g, (m) =>
+                                    m.toUpperCase(),
+                                  )}
+                              </div>
+                            )}
+
+                            {nv.responseStatus && (
+                              <span
+                                style={{
+                                  display: "inline-block",
+                                  marginTop: 4,
+                                  padding: "2px 8px",
+                                  borderRadius: 999,
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  textTransform: "capitalize",
+                                  color:
+                                    nv.responseStatus === "accepted"
+                                      ? "#28a745"
+                                      : nv.responseStatus === "declined"
+                                        ? "#dc3545"
+                                        : "#6c757d",
+                                  background:
+                                    nv.responseStatus === "accepted"
+                                      ? "#e6f4ea"
+                                      : nv.responseStatus === "declined"
+                                        ? "#fdecea"
+                                        : "#f8f9fa",
+                                  border:
+                                    nv.responseStatus === "accepted"
+                                      ? "1px solid #b7e1c5"
+                                      : nv.responseStatus === "declined"
+                                        ? "1px solid #f5c2c7"
+                                        : "1px solid #e9ecef",
+                                }}
+                              >
+                                {String(nv.responseStatus).replace(/_/g, " ")}
+                              </span>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger"
+                            style={{
+                              borderRadius: 8,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              whiteSpace: "nowrap",
+                            }}
+                            onClick={() =>
+                              navigate(`/vendor-details/${nv.vendorId}`)
+                            }
+                          >
+                            View Profile
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 
