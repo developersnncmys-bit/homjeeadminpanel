@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   FaRupeeSign,
   FaArrowLeft,
@@ -52,8 +52,13 @@ const LeadDetails = () => {
   const [loading, setLoading] = useState(true);
 
   const [vendors, setVendors] = useState([]);
-  const [selectedVendor, setSelectedVendor] = useState("");
-  const [notificationStatus, setNotificationStatus] = useState("");
+  // Pincode-filtered nearest eligible vendors. Populated from
+  // /bookings/nearby-eligible-vendors/:bookingId, which runs the backend's
+  // full eligibility pipeline (pincode → radius → coins → KPI → team). We
+  // use this list as the fallback display when nobody's actually been
+  // notified yet so admins see only vendors who SHOULD have got the lead
+  // — not every painter in the city.
+  const [nearbyVendors, setNearbyVendors] = useState([]);
   const [showEditModal, setShowEditModal] = useState(false);
 
   const [showCancelPopup, setShowCancelPopup] = useState(false);
@@ -90,17 +95,10 @@ const LeadDetails = () => {
           `${BASE_URL}/bookings/get-bookings-by-bookingid/${id}`,
         );
         const data = await res.json();
-        if (data?.booking) {
-          setLead(data.booking);
-          setNotificationStatus("");
-        } else {
-          setLead(null);
-          setNotificationStatus("Lead not found.");
-        }
+        setLead(data?.booking || null);
       } catch (error) {
         console.error("Error fetching lead:", error);
         setLead(null);
-        setNotificationStatus("Error fetching lead.");
       } finally {
         setLoading(false);
       }
@@ -110,29 +108,19 @@ const LeadDetails = () => {
       fetchLeadById();
     } else {
       setLoading(false);
-      setNotificationStatus("No booking id provided in URL.");
     }
   }, [id]);
 
-  // When lead changes, fetch vendors as in original logic
+  // Fetch a directory of vendors so we can resolve names + service types
+  // for the auto-notified invitedVendors list. The backend already
+  // auto-fans out new leads to nearest eligible vendors (see
+  // leadFanout.service.js); admins no longer notify manually, so this
+  // list is purely a name lookup, not a notify-target picker.
   useEffect(() => {
-    if (!lead) {
-      return;
-    }
+    if (!lead) return;
 
     const fetchVendors = async () => {
       try {
-        const latitude = lead?.address?.location?.coordinates?.[1] ?? 0;
-        const longitude = lead?.address?.location?.coordinates?.[0] ?? 0;
-
-        if (!latitude || !longitude) {
-          setNotificationStatus(
-            "No valid coordinates available for this lead.",
-          );
-          setVendors([]);
-          return;
-        }
-
         const scRaw = (
           lead?.service?.[0]?.category ||
           lead?.serviceType ||
@@ -140,41 +128,21 @@ const LeadDetails = () => {
         ).toLowerCase();
         const isDeepCleaning =
           scRaw.includes("deep cleaning") || scRaw.includes("deep");
-        const serviceCategorySlug = isDeepCleaning
-          ? "deep-cleaning"
-          : "house-painting";
 
-        const bookingRes = await fetch(
-          `${BASE_URL}/bookings/get-nearest-booking-by-location-${serviceCategorySlug}/${latitude}/${longitude}`,
-        );
-        const bookingData = await bookingRes.json();
+        const vendorRes = await fetch(`${BASE_URL}/vendors/get-all-vendor`);
+        const vendorData = await vendorRes.json();
 
-        if (bookingData?.bookings?.length > 0) {
-          const vendorRes = await fetch(`${BASE_URL}/vendors/get-all-vendor`);
-          const vendorData = await vendorRes.json();
-
-          if (vendorData?.status && Array.isArray(vendorData?.vendor)) {
-            const filteredVendors = vendorData.vendor.filter((v) => {
-              const st = (v?.vendor?.serviceType || "").toLowerCase();
-              return isDeepCleaning
-                ? st.includes("deep")
-                : st.includes("paint");
-            });
-            setVendors(filteredVendors);
-            setNotificationStatus(
-              filteredVendors.length ? "" : "No vendors found.",
-            );
-          } else {
-            setVendors([]);
-            setNotificationStatus("No vendors found.");
-          }
+        if (vendorData?.status && Array.isArray(vendorData?.vendor)) {
+          const filtered = vendorData.vendor.filter((v) => {
+            const st = (v?.vendor?.serviceType || "").toLowerCase();
+            return isDeepCleaning ? st.includes("deep") : st.includes("paint");
+          });
+          setVendors(filtered);
         } else {
           setVendors([]);
-          setNotificationStatus("No bookings found for this location/service.");
         }
       } catch (error) {
-        console.error("Error fetching vendors:", error);
-        setNotificationStatus("Error fetching vendors.");
+        console.error("Error fetching vendor directory:", error);
         setVendors([]);
       }
     };
@@ -182,64 +150,58 @@ const LeadDetails = () => {
     fetchVendors();
   }, [lead]);
 
-  const handleVendorSelect = (event) => {
-    setSelectedVendor(event.target.value);
-  };
-
-  const handleNotifyVendor = async () => {
-    if (!selectedVendor) {
-      setNotificationStatus("Please select a vendor to notify.");
+  // Pincode-aware fallback. Called for every lead. Renders only when the
+  // lead has no invitedVendors yet. The backend endpoint runs the same
+  // eligibility pipeline as the auto-fanout (pincode → radius → coins →
+  // KPI → team), so the displayed list matches the set the system WOULD
+  // notify — not the whole city pool.
+  useEffect(() => {
+    if (!lead?._id) {
+      setNearbyVendors([]);
       return;
     }
-
-    try {
-      const chosen = vendors.find((v) => v._id === selectedVendor);
-
-      const response = await fetch(
-        `${BASE_URL}/bookings/response-confirm-job`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            bookingId: lead._id || lead.booking_id || lead.id,
-            status: "Confirmed",
-            vendorId: selectedVendor,
-            assignedProfessional: {
-              professionalId: selectedVendor,
-              name: chosen?.vendor?.vendorName || "",
-              phone: chosen?.vendor?.mobileNumber || "",
-            },
-          }),
-        },
-      );
-
-      const result = await response.json();
-
-      if (response.ok) {
-        setNotificationStatus(
-          `Vendor notified successfully for booking ${
-            lead._id || lead.booking_id || ""
-          }.`,
+    const fetchNearby = async () => {
+      try {
+        const res = await fetch(
+          `${BASE_URL}/bookings/nearby-eligible-vendors/${lead._id}`,
         );
-        setLead((prev) => ({
-          ...prev,
-          bookingDetails: {
-            ...(prev?.bookingDetails || {}),
-            status: "Confirmed",
-          },
-          filledData: {
-            ...(prev?.filledData || {}),
-            assignedVendor: chosen?.vendor?.vendorName,
-          },
-        }));
-      } else {
-        setNotificationStatus(result?.message || "Failed to notify vendor.");
+        const json = await res.json();
+        setNearbyVendors(
+          json?.success && Array.isArray(json?.data) ? json.data : [],
+        );
+      } catch (err) {
+        console.error("nearby-eligible-vendors fetch failed:", err);
+        setNearbyVendors([]);
       }
-    } catch (error) {
-      console.error("Error notifying vendor:", error);
-      setNotificationStatus("Error notifying vendor.");
-    }
-  };
+    };
+    fetchNearby();
+  }, [lead]);
+
+  // Build the displayed list straight from booking.invitedVendors — the
+  // actually-notified vendors for THIS lead (auto-fanout result). The
+  // card is intentionally scoped to invited only: showing the full
+  // city-wide eligible pool was misleading when a lead is in a corner of
+  // the city served by a single vendor (e.g. an Undri lead reaches only
+  // Varun, but the city pool listed all 3 Pune painters).
+  const notifiedVendorList = useMemo(() => {
+    const invites = Array.isArray(lead?.invitedVendors)
+      ? lead.invitedVendors
+      : [];
+    return invites.map((iv) => {
+      const id = String(iv?.professionalId || "");
+      const fromList = vendors.find((v) => String(v._id) === id);
+      return {
+        vendorId: id,
+        name:
+          iv?.vendorName ||
+          fromList?.vendor?.vendorName ||
+          "(name unavailable)",
+        profileImage: fromList?.vendor?.profileImage || "",
+        invitedAt: iv?.invitedAt || null,
+        responseStatus: iv?.responseStatus || "pending",
+      };
+    });
+  }, [lead, vendors]);
 
   // loader
   if (loading) {
@@ -654,75 +616,178 @@ const LeadDetails = () => {
                   Vendors Notified
                 </h6>
 
-                {vendors.length > 0 ? (
+                {/* Vendors the backend auto-fanout actually sent THIS
+                    lead to. Sourced directly from booking.invitedVendors,
+                    so a lead in a remote pocket of the city (e.g. Undri)
+                    that only one vendor serves shows just that one vendor
+                    — not the entire city's eligible pool. */}
+                {notifiedVendorList.length > 0 ? (
                   <>
-                    <select
-                      className="form-select mb-3"
-                      value={selectedVendor}
-                      onChange={handleVendorSelect}
-                      style={{ fontSize: "12px" }}
-                    >
-                      <option value="">Select a Vendor</option>
-                      {vendors.map((v) => (
-                        <option key={v._id} value={v._id}>
-                          {v?.vendor?.vendorName} ({v?.vendor?.serviceType})
-                        </option>
-                      ))}
-                    </select>
-
-                    <button
-                      className="btn btn-secondary mb-2"
+                    <p
                       style={{
-                        borderRadius: "8px",
-                        fontSize: "10px",
-                        padding: "4px",
+                        fontSize: "12px",
+                        color: "#666",
+                        marginBottom: "10px",
                       }}
-                      onClick={handleNotifyVendor}
                     >
-                      Notify Vendor
-                    </button>
+                      Sent to {notifiedVendorList.length} nearest available{" "}
+                      {notifiedVendorList.length === 1 ? "vendor" : "vendors"}.
+                    </p>
 
-                    {notificationStatus && (
-                      <p
-                        style={{
-                          fontSize: "12px",
-                          color: notificationStatus
-                            .toLowerCase()
-                            .includes("success")
-                            ? "green"
-                            : "red",
-                        }}
-                      >
-                        {notificationStatus}
-                      </p>
-                    )}
-
-                    {lead.filledData?.assignedVendor && (
-                      <div className="d-flex mt-2">
-                        <div>
+                    {notifiedVendorList.map((row) => {
+                      const photo = row.profileImage || vendor;
+                      const ts = formatIST(row.invitedAt);
+                      const status = row.responseStatus;
+                      const statusColor =
+                        status === "accepted"
+                          ? "#28a745"
+                          : status === "declined"
+                            ? "#dc3545"
+                            : "#6c757d";
+                      return (
+                        <div
+                          key={row.vendorId}
+                          className="d-flex align-items-center mb-2"
+                          style={{
+                            padding: "8px",
+                            border: "1px solid #eee",
+                            borderRadius: "6px",
+                            gap: "10px",
+                          }}
+                        >
                           <img
-                            src={vendor}
-                            alt="Vendor"
+                            src={photo}
+                            alt={row.name}
                             className="rounded-circle"
-                            width="50"
+                            width="44"
+                            height="44"
+                            style={{ objectFit: "cover", flexShrink: 0 }}
+                            onError={(e) => {
+                              if (e.currentTarget.src !== vendor) {
+                                e.currentTarget.src = vendor;
+                              }
+                            }}
                           />
-                          <p className="mb-0" style={{ fontSize: "12px" }}>
-                            {lead.filledData.assignedVendor}
-                          </p>
-                          <p style={{ fontSize: "12px" }}>
-                            Vendor Notified:{" "}
-                            <span style={{ fontWeight: "bold" }}>
-                              14 Dec 2025 03:08 PM
-                            </span>
-                          </p>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p
+                              className="mb-0 text-truncate"
+                              style={{ fontSize: "12px", fontWeight: 600 }}
+                            >
+                              {row.name}
+                            </p>
+                            <p
+                              className="mb-0"
+                              style={{ fontSize: "11px", color: "#666" }}
+                            >
+                              {ts.d} {ts.t} ·{" "}
+                              <span
+                                style={{
+                                  fontWeight: "bold",
+                                  color: statusColor,
+                                }}
+                              >
+                                {status}
+                              </span>
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-outline-secondary btn-sm"
+                            style={{
+                              fontSize: "10px",
+                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              flexShrink: 0,
+                            }}
+                            onClick={() =>
+                              navigate(`/vendor-details/${row.vendorId}`)
+                            }
+                          >
+                            View Profile
+                          </button>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })}
+                  </>
+                ) : nearbyVendors.length > 0 ? (
+                  // No fanout yet — show the same pool the system would
+                  // notify, scoped tightly by pincode so only vendors who
+                  // actually serve this customer's area appear.
+                  <>
+                    <p
+                      style={{
+                        fontSize: "12px",
+                        color: "#666",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      No vendors notified yet — showing {nearbyVendors.length}{" "}
+                      nearest available{" "}
+                      {nearbyVendors.length === 1 ? "vendor" : "vendors"} (same
+                      pincode).
+                    </p>
+                    {nearbyVendors.map((nv) => {
+                      const photo = nv.profileImage || vendor;
+                      return (
+                        <div
+                          key={nv.vendorId}
+                          className="d-flex align-items-center mb-2"
+                          style={{
+                            padding: "8px",
+                            border: "1px solid #eee",
+                            borderRadius: "6px",
+                            gap: "10px",
+                          }}
+                        >
+                          <img
+                            src={photo}
+                            alt={nv.name}
+                            className="rounded-circle"
+                            width="44"
+                            height="44"
+                            style={{ objectFit: "cover", flexShrink: 0 }}
+                            onError={(e) => {
+                              if (e.currentTarget.src !== vendor) {
+                                e.currentTarget.src = vendor;
+                              }
+                            }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p
+                              className="mb-0 text-truncate"
+                              style={{ fontSize: "12px", fontWeight: 600 }}
+                            >
+                              {nv.name}
+                            </p>
+                            <p
+                              className="mb-0"
+                              style={{ fontSize: "11px", color: "#666" }}
+                            >
+                              {nv.city || nv.serviceType || ""}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-outline-secondary btn-sm"
+                            style={{
+                              fontSize: "10px",
+                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              flexShrink: 0,
+                            }}
+                            onClick={() =>
+                              navigate(`/vendor-details/${nv.vendorId}`)
+                            }
+                          >
+                            View Profile
+                          </button>
+                        </div>
+                      );
+                    })}
                   </>
                 ) : (
-                  <p style={{ fontSize: "12px" }}>
-                    {notificationStatus ||
-                      "No vendors available for this service/location."}
+                  <p style={{ fontSize: "12px", color: "#666" }}>
+                    No vendors available for this lead's pincode.
                   </p>
                 )}
               </div>
