@@ -537,16 +537,22 @@ const OngoingLeadDetails = () => {
   // Pulls vendors of the booking's city for the matching service type.
   // Backend `serviceType` query is a case-insensitive substring match, so a
   // keyword token ("deep" / "paint") catches every label variant
-  // ("Deep Cleaning", "deep-cleaner", "House Painting", "house-painter").
-  // Per business rule: availability / coins / team / sub-locality gates
-  // are NOT applied — admin can notify any of them. Archived vendors are
-  // dropped client-side as a final safety net.
+  // Pincode-scoped pool: hit the backend's /bookings/nearby-eligible-vendors
+  // endpoint which runs the full eligibility pipeline (pincode → radius →
+  // coins → KPI → team) against THIS booking. Before, this fetched the
+  // entire city pool via /vendor/get-all-vendor and surfaced every Pune
+  // vendor on every Pune lead — even when 411057 (Hinjawadi) and 411060
+  // (Undri) are visibly different areas.
+  //
+  // The endpoint returns flat cards; we re-wrap each into the shape the
+  // existing renderer expects (v.vendor.vendorName / v.vendor.profileImage
+  // / v.vendor.serviceType / v.vendor.city / v._id) so nothing downstream
+  // has to change.
   const fetchCityVendors = async () => {
     try {
-      // Canonicalize the locality (e.g. Pimpri-Chinchwad -> Pune) so vendors
-      // registered under any alias of the service city are listed.
-      const city = resolveServiceCity(booking?.address?.city || "");
-      if (!city) {
+      const bookingId =
+        booking?._id || booking?.id || booking?.bookingId || null;
+      if (!bookingId) {
         setCityVendors([]);
         return;
       }
@@ -554,27 +560,31 @@ const OngoingLeadDetails = () => {
       setCityVendorsLoading(true);
       setCityVendorsError(null);
 
-      const serviceTypeKeyword =
-        booking?.serviceType === "deep_cleaning" ? "deep" : "paint";
-
       const res = await fetch(
-        `${BASE_URL}/vendor/get-all-vendor?city=${encodeURIComponent(
-          city,
-        )}&serviceType=${encodeURIComponent(serviceTypeKeyword)}&page=1&limit=500`,
+        `${BASE_URL}/bookings/nearby-eligible-vendors/${bookingId}`,
       );
       const data = await res.json().catch(() => ({}));
 
-      if (!res.ok && res.status !== 404) {
-        throw new Error(data?.message || "Failed to fetch city vendors");
+      if (!res.ok) {
+        throw new Error(data?.message || "Failed to fetch nearby vendors");
       }
 
-      const list = Array.isArray(data?.vendor) ? data.vendor : [];
-      const filtered = list.filter((v) => !v?.isArchived);
+      const list = Array.isArray(data?.data) ? data.data : [];
+      const mapped = list.map((nv) => ({
+        _id: nv.vendorId,
+        vendor: {
+          vendorName: nv.name,
+          profileImage: nv.profileImage,
+          serviceType: nv.serviceType,
+          city: nv.city,
+        },
+        isArchived: false,
+      }));
 
-      setCityVendors(filtered);
+      setCityVendors(mapped);
     } catch (err) {
       console.error("fetchCityVendors error:", err);
-      setCityVendorsError(err?.message || "Failed to fetch city vendors");
+      setCityVendorsError(err?.message || "Failed to fetch nearby vendors");
       setCityVendors([]);
     } finally {
       setCityVendorsLoading(false);
@@ -2310,10 +2320,7 @@ const OngoingLeadDetails = () => {
                             }}
                           >
                             No vendors notified yet — showing nearest available
-                            vendors in{" "}
-                            {resolveServiceCity(booking?.address?.city) ||
-                              "this city"}
-                            .
+                            vendors for this lead's pincode.
                           </div>
 
                           {cityVendorsLoading && (
