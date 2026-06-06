@@ -2982,19 +2982,47 @@ export default function EditEnquiryModal({
             <div className="d-flex justify-content-between mb-2" style={{ alignItems: "center" }}>
               <span>{hasAnyEdit ? "New Total Amount:" : "Total Amount:"}</span>
 
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <strong style={{ color: "#007a0a" }}>₹{current}</strong>
-
-                {canShowFinalTotalEdit && (
-                  <FaEdit
-                    style={{ cursor: "pointer", color: "#7F6663" }}
+              {editingFinal ? (
+                // Inline editor — toggled by the pencil. Was missing in
+                // enquiry mode (was only rendered in lead mode), so the
+                // pencil click flipped editingFinal=true silently and
+                // the user saw no input — looked like the edit was
+                // broken. Mirrors the lead-mode editor below.
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Form.Control
+                    type="number"
+                    size="sm"
+                    value={draftFinalTotal}
+                    onChange={(e) => setDraftFinalTotal(e.target.value)}
+                    style={{ width: 120 }}
+                  />
+                  <FaCheck
+                    style={{ cursor: "pointer", color: "green" }}
+                    onClick={applyManualFinalTotal}
+                  />
+                  <ImCancelCircle
+                    style={{ cursor: "pointer", color: "red" }}
                     onClick={() => {
                       setDraftFinalTotal(String(serverFinalTotal));
-                      setEditingFinal(true);
+                      setEditingFinal(false);
                     }}
                   />
-                )}
-              </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <strong style={{ color: "#007a0a" }}>₹{current}</strong>
+
+                  {canShowFinalTotalEdit && (
+                    <FaEdit
+                      style={{ cursor: "pointer", color: "#7F6663" }}
+                      onClick={() => {
+                        setDraftFinalTotal(String(serverFinalTotal));
+                        setEditingFinal(true);
+                      }}
+                    />
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="d-flex justify-content-between mb-2">
