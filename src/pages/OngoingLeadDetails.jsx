@@ -537,22 +537,16 @@ const OngoingLeadDetails = () => {
   // Pulls vendors of the booking's city for the matching service type.
   // Backend `serviceType` query is a case-insensitive substring match, so a
   // keyword token ("deep" / "paint") catches every label variant
-  // Pincode-scoped pool: hit the backend's /bookings/nearby-eligible-vendors
-  // endpoint which runs the full eligibility pipeline (pincode → radius →
-  // coins → KPI → team) against THIS booking. Before, this fetched the
-  // entire city pool via /vendor/get-all-vendor and surfaced every Pune
-  // vendor on every Pune lead — even when 411057 (Hinjawadi) and 411060
-  // (Undri) are visibly different areas.
-  //
-  // The endpoint returns flat cards; we re-wrap each into the shape the
-  // existing renderer expects (v.vendor.vendorName / v.vendor.profileImage
-  // / v.vendor.serviceType / v.vendor.city / v._id) so nothing downstream
-  // has to change.
+  // Full city pool, NO filtering on pincode / wallet / team / KPI. This
+  // populates the "Notify another vendor in this city" dropdown which is
+  // an admin override — once admin decides to send a lead to a specific
+  // vendor, they shouldn't be blocked by the eligibility pipeline that
+  // gates the auto-fanout. Same service type, same city, not archived —
+  // that's it.
   const fetchCityVendors = async () => {
     try {
-      const bookingId =
-        booking?._id || booking?.id || booking?.bookingId || null;
-      if (!bookingId) {
+      const city = resolveServiceCity(booking?.address?.city || "");
+      if (!city) {
         setCityVendors([]);
         return;
       }
@@ -560,31 +554,28 @@ const OngoingLeadDetails = () => {
       setCityVendorsLoading(true);
       setCityVendorsError(null);
 
+      const serviceTypeKeyword =
+        booking?.serviceType === "deep_cleaning" ? "deep" : "paint";
+
       const res = await fetch(
-        `${BASE_URL}/bookings/nearby-eligible-vendors/${bookingId}`,
+        `${BASE_URL}/vendor/get-all-vendor?city=${encodeURIComponent(
+          city,
+        )}&serviceType=${encodeURIComponent(
+          serviceTypeKeyword,
+        )}&page=1&limit=500`,
       );
       const data = await res.json().catch(() => ({}));
 
-      if (!res.ok) {
-        throw new Error(data?.message || "Failed to fetch nearby vendors");
+      if (!res.ok && res.status !== 404) {
+        throw new Error(data?.message || "Failed to fetch city vendors");
       }
 
-      const list = Array.isArray(data?.data) ? data.data : [];
-      const mapped = list.map((nv) => ({
-        _id: nv.vendorId,
-        vendor: {
-          vendorName: nv.name,
-          profileImage: nv.profileImage,
-          serviceType: nv.serviceType,
-          city: nv.city,
-        },
-        isArchived: false,
-      }));
-
-      setCityVendors(mapped);
+      const list = Array.isArray(data?.vendor) ? data.vendor : [];
+      const filtered = list.filter((v) => !v?.isArchived);
+      setCityVendors(filtered);
     } catch (err) {
       console.error("fetchCityVendors error:", err);
-      setCityVendorsError(err?.message || "Failed to fetch nearby vendors");
+      setCityVendorsError(err?.message || "Failed to fetch city vendors");
       setCityVendors([]);
     } finally {
       setCityVendorsLoading(false);
@@ -2311,138 +2302,24 @@ const OngoingLeadDetails = () => {
                     {!notifiedLoading &&
                       !notifiedError &&
                       notifiedVendors.length === 0 && (
-                        <>
-                          <div
-                            style={{
-                              fontSize: 11,
-                              color: "#6c757d",
-                              marginBottom: 8,
-                            }}
-                          >
-                            No vendors notified yet — showing nearest available
-                            vendors for this lead's pincode.
-                          </div>
-
-                          {cityVendorsLoading && (
-                            <div
-                              style={{
-                                fontSize: 12,
-                                color: "#6c757d",
-                                padding: "8px 0",
-                              }}
-                            >
-                              Loading nearest vendors...
-                            </div>
-                          )}
-
-                          {!cityVendorsLoading && cityVendors.length === 0 && (
-                            <div
-                              style={{
-                                fontSize: 12,
-                                color: "#6c757d",
-                                background: "#f8f9fa",
-                                border: "1px dashed #dee2e6",
-                                padding: "10px 12px",
-                                borderRadius: 8,
-                              }}
-                            >
-                              No nearest vendors found for this lead.
-                            </div>
-                          )}
-
-                          {!cityVendorsLoading && cityVendors.length > 0 && (
-                            <div
-                              style={{
-                                maxHeight: 280,
-                                overflowY: "auto",
-                                paddingRight: 4,
-                              }}
-                            >
-                              {cityVendors.map((v) => {
-                                const vName =
-                                  v?.vendor?.vendorName || "Unnamed Vendor";
-                                const vPhoto = v?.vendor?.profileImage;
-                                const vSubtitle =
-                                  v?.vendor?.serviceType ||
-                                  v?.vendor?.city ||
-                                  "";
-                                return (
-                                  <div
-                                    key={v._id}
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: 12,
-                                      padding: "10px 8px",
-                                      border: "1px solid #eef0f3",
-                                      borderRadius: 10,
-                                      marginBottom: 8,
-                                      background: "#fff",
-                                    }}
-                                  >
-                                    <img
-                                      src={vPhoto || vendorImg}
-                                      alt={vName}
-                                      onError={(e) => {
-                                        e.currentTarget.src = vendorImg;
-                                      }}
-                                      style={{
-                                        width: 44,
-                                        height: 44,
-                                        borderRadius: "50%",
-                                        objectFit: "cover",
-                                        flexShrink: 0,
-                                      }}
-                                    />
-
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      <div
-                                        style={{
-                                          fontSize: 13,
-                                          fontWeight: 700,
-                                          color: "#111",
-                                          whiteSpace: "nowrap",
-                                          overflow: "hidden",
-                                          textOverflow: "ellipsis",
-                                        }}
-                                        title={vName}
-                                      >
-                                        {vName}
-                                      </div>
-                                      {vSubtitle && (
-                                        <div
-                                          style={{
-                                            fontSize: 11,
-                                            color: "#8a8f98",
-                                            textTransform: "capitalize",
-                                          }}
-                                        >
-                                          {vSubtitle}
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-danger"
-                                      style={{
-                                        borderRadius: 8,
-                                        fontSize: 11,
-                                        fontWeight: 700,
-                                        whiteSpace: "nowrap",
-                                      }}
-                                      onClick={() =>
-                                        navigate(`/vendor-details/${v._id}`)
-                                      }
-                                    >
-                                      View Profile
-                                    </button>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </>
+                        // Admin asked us to drop the "showing nearest
+                        // available vendors for this lead's pincode" copy
+                        // and the city-pool fallback rendered below it —
+                        // vendors get notified correctly by the fanout
+                        // and the count is real, so an empty card means
+                        // we're genuinely between fanout and accept.
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#6c757d",
+                            background: "#f8f9fa",
+                            border: "1px dashed #dee2e6",
+                            padding: "10px 12px",
+                            borderRadius: 8,
+                          }}
+                        >
+                          No vendors notified yet.
+                        </div>
                       )}
 
                     {notifiedVendors.length > 0 && (
@@ -2501,7 +2378,7 @@ const OngoingLeadDetails = () => {
                                 <div
                                   style={{ fontSize: 11, color: "#8a8f98" }}
                                 >
-                                  Notified{" "}
+                                  Vendor Received:{" "}
                                   {new Date(nv.invitedAt)
                                     .toLocaleString("en-GB", {
                                       day: "2-digit",
@@ -2995,11 +2872,59 @@ const OngoingLeadDetails = () => {
                     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
                   }}
                 >
-                  {measurementsLoading ? (
-                    <div style={{ fontSize: 12, color: "#6c757d" }}>
-                      Loading measurements...
-                    </div>
-                  ) : measurementsError ? (
+                  {/* Header always visible — matches the Quotes Summary
+                      card pattern. Used to be rendered inside the IIFE
+                      that only ran when measurements existed, so the
+                      empty state was just a dashed box with no title.
+                      Now the title + count badge sit above the body
+                      regardless of state. */}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 10,
+                    }}
+                  >
+                    <h6 className="fw-bold mb-0" style={{ fontSize: 14 }}>
+                      Measurement Summary
+                    </h6>
+
+                    {measurementsLoading ? (
+                      <span style={{ fontSize: 12, color: "#6c757d" }}>
+                        Loading...
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 800,
+                          padding: "4px 10px",
+                          borderRadius: 999,
+                          border: "1px solid #e9ecef",
+                          background: "#f8f9fa",
+                          color: "#6c757d",
+                        }}
+                      >
+                        {(() => {
+                          try {
+                            const m =
+                              measurements?.[measurements.length - 1] || {};
+                            const rooms =
+                              m?.rooms && typeof m.rooms === "object"
+                                ? m.rooms
+                                : {};
+                            const n = Object.keys(rooms).length;
+                            return `${n} Room${n === 1 ? "" : "s"}`;
+                          } catch (e) {
+                            return "0 Rooms";
+                          }
+                        })()}
+                      </span>
+                    )}
+                  </div>
+
+                  {measurementsLoading ? null : measurementsError ? (
                     <div
                       style={{
                         fontSize: 12,
@@ -3086,36 +3011,6 @@ const OngoingLeadDetails = () => {
                           <>
                             <div
                               style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                marginBottom: 10,
-                              }}
-                            >
-                              <h6
-                                className="fw-bold mb-0"
-                                style={{ fontSize: 14 }}
-                              >
-                                Measurement Summary
-                              </h6>
-
-                              <span
-                                style={{
-                                  fontSize: 11,
-                                  fontWeight: 800,
-                                  padding: "4px 10px",
-                                  borderRadius: 999,
-                                  border: "1px solid #e9ecef",
-                                  background: "#f8f9fa",
-                                  color: "#6c757d",
-                                }}
-                              >
-                                {roomsCount} Rooms
-                              </span>
-                            </div>
-
-                            <div
-                              style={{
                                 borderTop: "1px dashed #cfd4da",
                                 marginBottom: 8,
                               }}
@@ -3194,7 +3089,7 @@ const OngoingLeadDetails = () => {
                         borderRadius: 10,
                       }}
                     >
-                      No measurements found.
+                      Measurement not found.
                     </div>
                   )}
                 </div>

@@ -359,6 +359,19 @@ const RescheduleTimePickerModal = ({ booking, onClose, onRescheduled }) => {
   const serviceType = booking?.serviceType;
   const lat = booking?.address?.location?.coordinates?.[1];
   const lng = booking?.address?.location?.coordinates?.[0];
+  const city = booking?.address?.city || "";
+
+  // Once a vendor is on the hook for this lead (assigned, or any invite
+  // marked accepted), only their personal availability is meaningful for
+  // reschedule. Using the customer-pool endpoint here returns any free
+  // vendor at that slot, which is why every time slot used to render as
+  // available even when the assigned vendor was actually busy.
+  const assignedVendorId =
+    booking?.assignedProfessional?.professionalId ||
+    (booking?.invitedVendors || []).find(
+      (v) => String(v?.responseStatus || "").toLowerCase() === "accepted"
+    )?.professionalId ||
+    null;
 
   const [selectedDate, setSelectedDate] = useState(yyyymmdd(new Date()));
   const [selectedTime, setSelectedTime] = useState("");
@@ -375,11 +388,33 @@ const RescheduleTimePickerModal = ({ booking, onClose, onRescheduled }) => {
       setSelectedTime("");
 
       try {
+        // Vendor-specific path: ask the assigned vendor's reschedule grid,
+        // which already excludes their other accepted bookings AND their
+        // pending paid leads (so admin can't move this lead onto a slot
+        // the vendor is about to be locked into).
+        if (assignedVendorId && booking?._id) {
+          const res = await axios.post(
+            `${BASE_URL}/slot/vendor/reschedule-booking/available-slots/${assignedVendorId}`,
+            { bookingId: booking._id, targetDate: selectedDate },
+            { headers: { "Content-Type": "application/json" } }
+          );
+
+          const data = res.data || {};
+          setAvailableTimes(
+            Array.isArray(data.availableSlots) ? data.availableSlots : []
+          );
+          return;
+        }
+
+        // No vendor on the hook yet — fall back to the customer-availability
+        // endpoint. `city` must be sent so the vendor pool is filtered to
+        // the booking's service area (also required by HP).
         const basePayload = {
           serviceType, // deep_cleaning | house_painting
           date: selectedDate,
           lat,
           lng,
+          city,
         };
 
         const payload =
@@ -390,17 +425,13 @@ const RescheduleTimePickerModal = ({ booking, onClose, onRescheduled }) => {
               }
             : basePayload;
 
-        console.log("ADMIN RESCHEDULE SLOTS PAYLOAD =>", payload);
-
         const res = await axios.post(
-          `${BASE_URL}/slots/website/get-available-slots`, // ✅ FIX ENDPOINT
+          `${BASE_URL}/slots/website/get-available-slots`,
           payload,
           { headers: { "Content-Type": "application/json" } }
         );
 
         const data = res.data;
-        console.log("ADMIN RESCHEDULE SLOTS RESPONSE =>", data);
-
         setAvailableTimes(data?.success ? data.slots || [] : []);
       } catch (err) {
         console.error("Slot fetch error:", err);
@@ -411,7 +442,7 @@ const RescheduleTimePickerModal = ({ booking, onClose, onRescheduled }) => {
     };
 
     fetchSlots();
-  }, [selectedDate, serviceType, lat, lng, booking]);
+  }, [selectedDate, serviceType, lat, lng, city, assignedVendorId, booking]);
 
   /* ------------------ CONFIRM RESCHEDULE ------------------ */
 
@@ -444,7 +475,15 @@ const RescheduleTimePickerModal = ({ booking, onClose, onRescheduled }) => {
       onClose();
     } catch (err) {
       console.error(err);
-      toast.error(err?.message || "Failed to reschedule booking");
+      // Backend returns 409 with a structured `message` when the chosen
+      // slot collides with the assigned vendor's other bookings. Surface
+      // it so admin knows to pick a different slot instead of seeing the
+      // generic "Failed to reschedule" message.
+      const apiMsg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Failed to reschedule booking";
+      toast.error(apiMsg);
     } finally {
       setSubmitting(false);
     }

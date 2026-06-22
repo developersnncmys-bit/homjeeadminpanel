@@ -98,6 +98,26 @@ export const resolveServiceCity = (raw) => {
   return ALIAS_TO_CANONICAL[trimmed.toLowerCase()] || trimmed;
 };
 
+// Returns every lowercased alias (including the canonical name itself)
+// for a given city. Used by list-page filters that need to treat "Pune"
+// as a match for "Pimpri-Chinchwad" / "Hinjawadi" / etc. addresses
+// without re-deriving the alias table at each call site.
+//
+// Falls back to `[lowercased raw]` for an unknown city so unfamiliar
+// inputs still filter on their literal name.
+export const aliasesForServiceCity = (raw) => {
+  if (!raw) return [];
+  const canonical = resolveServiceCity(raw);
+  const aliases = SERVICE_CITIES[canonical];
+  if (Array.isArray(aliases) && aliases.length) {
+    return [
+      canonical.toLowerCase(),
+      ...aliases.map((a) => String(a).toLowerCase()),
+    ];
+  }
+  return [String(canonical || raw).trim().toLowerCase()];
+};
+
 // Tier order — Google components most-specific first. We scan in this
 // priority so a true locality match wins over a district fallback.
 const COMPONENT_TIERS = [

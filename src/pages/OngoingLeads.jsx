@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { FaMapMarkerAlt } from "react-icons/fa";
 import { Button } from "react-bootstrap";
 import { BASE_URL } from "../utils/config";
+import { aliasesForServiceCity } from "../utils/serviceCity";
 
 const OngoingLeads = () => {
   const navigate = useNavigate();
@@ -220,8 +221,15 @@ const OngoingLeads = () => {
       (filterType === "Today" && isToday) ||
       (filterType === "Tomorrow" && isTomorrow);
 
+    // Match by canonical service-city + every alias so "Pune" picks up
+    // leads tagged Pimpri-Chinchwad / Hinjawadi / etc. The previous
+    // plain `.includes(cityFilter)` excluded them.
+    const cityHay = (lead.city || "").toLowerCase();
     const matchesCity =
-      cityFilter === "All Cities" || (lead.city || "").includes(cityFilter);
+      cityFilter === "All Cities" ||
+      aliasesForServiceCity(cityFilter).some((alias) =>
+        cityHay.includes(alias),
+      );
 
     const matchesService =
       serviceFilter === "All Services" ||
@@ -268,7 +276,7 @@ const OngoingLeads = () => {
     <div style={styles.container}>
       {/* HEADER */}
       <div style={styles.header}>
-        <h5 style={styles.heading}>Ongoing & Pending Leads OngoingLeads.jsx</h5>
+        <h5 style={styles.heading}>Ongoing & Pending Leads</h5>
 
         <div style={styles.filtersContainer}>
           {["All Leads", "Today", "Tomorrow"].map((filter) => (

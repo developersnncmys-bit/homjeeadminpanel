@@ -2033,9 +2033,13 @@ export default function EditEnquiryModal({
     enquiry?.raw?.bookingDetails?.status || enquiry?.raw?.status || "Pending";
 
   const isPendingBooking = bookingStatus.toLowerCase() === "pending";
-  const canEditServices = ALLOWED_SERVICE_EDIT_STATUSES.includes(
-    bookingStatus.toLowerCase(),
-  );
+  // Lead mode (Ongoing Lead edit) bypasses the status whitelist so the
+  // admin can fix lead details after a vendor has accepted. The
+  // backend's update endpoint still validates and is the source of
+  // truth — this just stops the inputs from being client-locked.
+  const canEditServices =
+    leadMode ||
+    ALLOWED_SERVICE_EDIT_STATUSES.includes(bookingStatus.toLowerCase());
 
   // ---------------------------------------
   // Helpers
@@ -3147,24 +3151,41 @@ export default function EditEnquiryModal({
         </Modal.Header>
 
         <Modal.Body style={{ fontSize: 13 }}>
+          {/* All identity / address / slot fields used to be `readOnly`,
+              which made the Edit Lead modal a noop on Ongoing Leads
+              (admins could open it but couldn't change anything). They
+              now accept input; the "Change Address" and "Change Date &
+              Slot" buttons are also shown in leadMode so structured
+              edits still go through the address picker and slot picker
+              when the admin needs Google-geocoded coords or a vendor-
+              validated time. */}
           {/* CUSTOMER */}
           <h6 className="mb-2">Customer *</h6>
           <Row className="g-2 mb-3">
             <Col md={6}>
               <Form.Label>Name</Form.Label>
-              <Form.Control value={customerName} readOnly size="sm" />
+              <Form.Control
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                size="sm"
+              />
             </Col>
             <Col md={6}>
               <Form.Label>Phone *</Form.Label>
               <InputGroup size="sm">
                 <InputGroup.Text>+91</InputGroup.Text>
-                <Form.Control value={customerPhone} readOnly />
+                <Form.Control
+                  value={customerPhone}
+                  onChange={(e) =>
+                    setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
+                  }
+                />
               </InputGroup>
             </Col>
           </Row>
 
           {/* ADDRESS */}
-          {isPendingBooking && (
+          {(isPendingBooking || leadMode) && (
             <div className="d-flex justify-content-between mb-2">
               <h6 className="mb-0">Address *</h6>
               <Button variant="outline-secondary" size="sm" onClick={() => setShowAddressModal(true)}>
@@ -3176,27 +3197,43 @@ export default function EditEnquiryModal({
           <Row className="g-2 mb-3">
             <Col md={4}>
               <Form.Label>House / Flat No.</Form.Label>
-              <Form.Control value={houseFlatNumber} readOnly size="sm" />
+              <Form.Control
+                value={houseFlatNumber}
+                onChange={(e) => setHouseFlatNumber(e.target.value)}
+                size="sm"
+              />
             </Col>
             <Col md={4}>
               <Form.Label>Street / Area</Form.Label>
-              <Form.Control value={streetArea} readOnly size="sm" />
+              <Form.Control
+                value={streetArea}
+                onChange={(e) => setStreetArea(e.target.value)}
+                size="sm"
+              />
             </Col>
             <Col md={4}>
               <Form.Label>Landmark</Form.Label>
-              <Form.Control value={landMark} readOnly size="sm" />
+              <Form.Control
+                value={landMark}
+                onChange={(e) => setLandMark(e.target.value)}
+                size="sm"
+              />
             </Col>
           </Row>
 
           <Row className="g-2 mb-3">
             <Col md={4}>
               <Form.Label>City</Form.Label>
-              <Form.Control value={city} readOnly size="sm" />
+              <Form.Control
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                size="sm"
+              />
             </Col>
           </Row>
 
           {/* SLOT */}
-          {isPendingBooking && (
+          {(isPendingBooking || leadMode) && (
             <div className="d-flex justify-content-between mb-2">
               <div className="d-flex flex-column mb-2">
                 <div className="d-flex justify-content-between align-items-center">
@@ -3242,11 +3279,21 @@ export default function EditEnquiryModal({
           <Row className="g-2 mb-3">
             <Col md={6}>
               <Form.Label>Date</Form.Label>
-              <Form.Control value={slotDate} readOnly size="sm" />
+              <Form.Control
+                value={slotDate}
+                onChange={(e) => setSlotDate(e.target.value)}
+                size="sm"
+                placeholder="YYYY-MM-DD"
+              />
             </Col>
             <Col md={6}>
               <Form.Label>Time</Form.Label>
-              <Form.Control value={slotTime} readOnly size="sm" />
+              <Form.Control
+                value={slotTime}
+                onChange={(e) => setSlotTime(e.target.value)}
+                size="sm"
+                placeholder="e.g. 10:00 AM"
+              />
             </Col>
           </Row>
 

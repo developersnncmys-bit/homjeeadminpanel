@@ -6,15 +6,38 @@ import CreateLeadModal from "../pages/CreateLeadModal";
 import NotificationPanel from "./NotificationPanel";
 import { BASE_URL } from "../utils/config";
 
+// Notifications surface enquiry + new-lead events only. Once a lead is
+// picked up by a vendor (ongoing), its notification is suppressed so
+// admin's bell only flags items still needing attention.
+const VISIBLE_NOTIFICATION_TYPES = new Set([
+  "NEW_ENQUIRY_CREATED",
+  "NEW_LEAD_CREATED",
+]);
+
 const Header = ({ toggleSidebar }) => {
   const [showModal, setShowModal] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
 
   const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Show + count only enquiry / new-lead notifications. Backend may
+  // also return cancel / status notifications for ongoing leads — those
+  // are filtered out client-side so the bell badge matches what's
+  // actually rendered in the panel.
+  const visibleNotifications = useMemo(
+    () =>
+      notifications.filter((n) =>
+        VISIBLE_NOTIFICATION_TYPES.has(n?.notificationType),
+      ),
+    [notifications],
+  );
+  const unreadCount = useMemo(
+    () => visibleNotifications.filter((n) => n?.status === "unread").length,
+    [visibleNotifications],
+  );
 
   // ✅ logged in admin (from localStorage)
   const loggedAdmin = useMemo(() => {
@@ -43,9 +66,8 @@ const Header = ({ toggleSidebar }) => {
         `${BASE_URL}/in-app-notify/fetch-admin-notifications?page=${pageNo}&limit=15`
       );
 
-      const { data, unreadCount, pagination } = res.data;
+      const { data, pagination } = res.data;
 
-      setUnreadCount(unreadCount ?? 0);
       setHasNextPage(pagination?.hasNextPage ?? false);
       setPage(pageNo);
 
@@ -74,8 +96,6 @@ const Header = ({ toggleSidebar }) => {
       setNotifications((prev) =>
         prev.map((n) => (n._id === id ? { ...n, status: "read" } : n))
       );
-
-      setUnreadCount((prev) => Math.max(prev - 1, 0));
     } catch (err) {
       console.error("❌ Mark read error:", err);
     }
@@ -144,7 +164,7 @@ const Header = ({ toggleSidebar }) => {
       <NotificationPanel
         show={showNotification}
         onClose={() => setShowNotification(false)}
-        notifications={notifications}
+        notifications={visibleNotifications}
         unreadCount={unreadCount}
         loading={loading}
         hasNextPage={hasNextPage}

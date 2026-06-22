@@ -5,6 +5,7 @@ import { FaMapMarkerAlt } from "react-icons/fa";
 import { toast } from "react-toastify";
 import CreateLeadModal from "./CreateLeadModal";
 import { BASE_URL } from "../utils/config";
+import { aliasesForServiceCity } from "../utils/serviceCity";
 
 const genUID = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -104,7 +105,37 @@ const NewLeads = () => {
             ? data.bookings
             : [];
 
-        const transformed = leadsData.map((booking, index) => {
+        // Drop leads that are no longer "new" — once a vendor accepts
+        // (via invitedVendors or assignedProfessional.acceptedDate) the
+        // lead moves to Ongoing Leads. Cancelled leads also fall out so
+        // this list only shows items still needing vendor pickup.
+        const isCancelledStatus = (s) => {
+          const v = String(s || "").toLowerCase();
+          return (
+            v.includes("cancel") ||
+            v === "admin cancelled" ||
+            v === "customer cancelled"
+          );
+        };
+
+        const stillNewLeads = leadsData.filter((booking) => {
+          const status = booking?.bookingDetails?.status;
+          if (isCancelledStatus(status)) return false;
+
+          const accepted = (booking?.invitedVendors || []).some(
+            (iv) =>
+              String(iv?.responseStatus || "")
+                .toLowerCase()
+                .trim() === "accepted",
+          );
+          if (accepted) return false;
+
+          if (booking?.assignedProfessional?.acceptedDate) return false;
+
+          return true;
+        });
+
+        const transformed = stillNewLeads.map((booking, index) => {
           const derivedFormName =
             booking?.formName ||
             booking?.form?.name ||
@@ -221,10 +252,14 @@ const NewLeads = () => {
 
       const category = (lead.serviceCategory || "").toLowerCase();
 
+      // Match by canonical service-city + every alias (Pune matches
+      // Pimpri-Chinchwad / Hinjawadi addresses; Bengaluru matches
+      // Bangalore Urban; etc.). The flat `addr.includes(city)` check
+      // dropped Pimpri-Chinchwad leads from the Pune filter.
       const cityMatch =
         city === "" ||
         city === "All Cities" ||
-        addr.includes(city.toLowerCase());
+        aliasesForServiceCity(city).some((alias) => addr.includes(alias));
 
       const serviceMatch =
         service === "" || category.includes(service.toLowerCase());
@@ -236,7 +271,7 @@ const NewLeads = () => {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h5 style={styles.heading}>New Leads NewLeads.jsx</h5>
+        <h5 style={styles.heading}>New Leads</h5>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <select
