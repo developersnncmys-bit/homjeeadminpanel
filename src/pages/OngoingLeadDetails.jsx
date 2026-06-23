@@ -638,6 +638,66 @@ const OngoingLeadDetails = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [booking, isNewLead]);
 
+  // Auto-promote pincode-matched fallback → real notified vendors.
+  //
+  // When invitedVendors is empty but the pincode pool isn't, fire the
+  // refanout endpoint once. That pushes each eligible vendor into
+  // booking.invitedVendors with invitedAt = now, then we re-fetch the
+  // notified list so each row gets the "Vendor Received: dd/mm/yyyy
+  // hh:mm AM" timestamp the admin asked for.
+  //
+  // Guarded by a ref so we don't re-fire on every render. Skipped for
+  // unpaid enquiries (the backend refuses fanout there anyway) and for
+  // closed/ongoing leads (only "new lead" mode shows the fallback).
+  const autoFanoutTriedRef = useRef(false);
+  useEffect(() => {
+    try {
+      if (!isNewLead) return;
+      if (!booking?._id) return;
+      if (notifiedLoading || notifiedError) return;
+      if (notifiedVendors.length > 0) return;
+      if (nearbyVendors.length === 0) return;
+      // Only paid leads can be fanned out. Unpaid enquiries (isEnquiry
+      // still true) get rejected by the backend with 400.
+      if (booking?.isEnquiry !== false) return;
+      if (autoFanoutTriedRef.current) return;
+      autoFanoutTriedRef.current = true;
+
+      const bid = booking._id;
+      (async () => {
+        try {
+          const res = await fetch(
+            `${BASE_URL}/bookings/refanout-lead/${bid}`,
+            { method: "POST" },
+          );
+          if (res.ok) {
+            await fetchNotifiedVendors();
+          }
+        } catch (e) {
+          console.warn("auto refanout skipped:", e?.message || e);
+        }
+      })();
+    } catch (e) {
+      console.error("auto refanout effect failed:", e);
+    }
+    // setFetchNotifiedVendors is a stable closure here; ref guard limits
+    // this to a single fire per page-load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isNewLead,
+    booking,
+    notifiedLoading,
+    notifiedError,
+    notifiedVendors.length,
+    nearbyVendors.length,
+  ]);
+
+  // Reset the auto-fanout guard whenever the user opens a different
+  // lead, so each booking gets its own one-shot fire.
+  useEffect(() => {
+    autoFanoutTriedRef.current = false;
+  }, [booking?._id]);
+
   const handleNotifyChosenVendor = async () => {
     try {
       if (!selectedCityVendor) {
