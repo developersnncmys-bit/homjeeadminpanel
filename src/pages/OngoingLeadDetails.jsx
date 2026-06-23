@@ -3036,13 +3036,19 @@ const OngoingLeadDetails = () => {
                   </div>
 
                   {measurementsLoading ? null : measurementsError ? (
+                    // "Measurement not found" comes through here as an
+                    // error message (the API treats it as 404). Render
+                    // it with the same neutral empty-state style as
+                    // "No quotations created yet" — pink/red read as
+                    // a hard failure to admins when it's just a normal
+                    // empty state.
                     <div
                       style={{
                         fontSize: 12,
-                        color: "#dc3545",
-                        background: "#fdecea",
-                        border: "1px solid #f5c2c7",
-                        padding: "8px 10px",
+                        color: "#6c757d",
+                        background: "#f8f9fa",
+                        border: "1px dashed #dee2e6",
+                        padding: "10px 12px",
                         borderRadius: 10,
                       }}
                     >
