@@ -102,6 +102,15 @@ const OngoingLeadDetails = () => {
   const [cityVendors, setCityVendors] = useState([]);
   const [cityVendorsLoading, setCityVendorsLoading] = useState(false);
   const [cityVendorsError, setCityVendorsError] = useState(null);
+  // Pincode-matched eligible vendors for this booking. Different from
+  // cityVendors above — cityVendors is the full city pool (for the
+  // "Notify another vendor" dropdown override) while nearbyVendors is
+  // the pincode-gated set the auto-fanout would have notified. We show
+  // this as a fallback under "Vendor Notified" when the lead has no
+  // invitedVendors yet (e.g. unpaid enquiry, fanout still pending,
+  // missed onboarding window), so admins always see who SHOULD have
+  // got the lead based on pincode alone.
+  const [nearbyVendors, setNearbyVendors] = useState([]);
 
   const [selectedCityVendor, setSelectedCityVendor] = useState("");
   const [notifying, setNotifying] = useState(false);
@@ -582,6 +591,31 @@ const OngoingLeadDetails = () => {
     }
   };
 
+  // Pincode-aware fallback. Runs the backend's full eligibility pipeline
+  // (pincode → radius → coins → KPI → team) for this booking. The
+  // response carries the exact pool the auto-fanout would notify — we
+  // render it under "Vendor Notified" when invitedVendors is empty so
+  // admins always see who SHOULD have received the lead.
+  const fetchNearbyEligibleVendors = async () => {
+    try {
+      const bookingId =
+        booking?._id || booking?.id || booking?.bookingId || null;
+      if (!bookingId) {
+        setNearbyVendors([]);
+        return;
+      }
+      const res = await fetch(
+        `${BASE_URL}/bookings/nearby-eligible-vendors/${bookingId}`,
+      );
+      const data = await res.json().catch(() => ({}));
+      const list = res.ok && Array.isArray(data?.data) ? data.data : [];
+      setNearbyVendors(list);
+    } catch (err) {
+      console.error("fetchNearbyEligibleVendors error:", err);
+      setNearbyVendors([]);
+    }
+  };
+
   useEffect(() => {
     try {
       if (!booking) return;
@@ -591,7 +625,13 @@ const OngoingLeadDetails = () => {
       // the lead. The "Notify another vendor" picker (which uses
       // cityVendors) is the only piece that's new-lead-only.
       fetchNotifiedVendors();
-      if (isNewLead) fetchCityVendors();
+      if (isNewLead) {
+        fetchCityVendors();
+        // Pincode-matched fallback runs alongside — admins want to see
+        // who should have been notified even when invitedVendors is
+        // momentarily empty.
+        fetchNearbyEligibleVendors();
+      }
     } catch (err) {
       console.error("notified-vendors effect error:", err);
     }
@@ -2301,13 +2341,84 @@ const OngoingLeadDetails = () => {
 
                     {!notifiedLoading &&
                       !notifiedError &&
-                      notifiedVendors.length === 0 && (
-                        // Admin asked us to drop the "showing nearest
-                        // available vendors for this lead's pincode" copy
-                        // and the city-pool fallback rendered below it —
-                        // vendors get notified correctly by the fanout
-                        // and the count is real, so an empty card means
-                        // we're genuinely between fanout and accept.
+                      notifiedVendors.length === 0 &&
+                      // Pincode-matched fallback. Renders the same
+                      // vendor-row card style as the notified list, so
+                      // admins can see who SHOULD have received this
+                      // lead when invitedVendors hasn't filled in yet
+                      // (unpaid enquiry, fanout pending, etc.). Falls
+                      // through to "No vendors notified yet." when the
+                      // pincode pool is also empty.
+                      (nearbyVendors.length > 0 ? (
+                        <div
+                          style={{
+                            maxHeight: 280,
+                            overflowY: "auto",
+                            paddingRight: 4,
+                          }}
+                        >
+                          {nearbyVendors.map((nv) => (
+                            <div
+                              key={nv.vendorId}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 12,
+                                padding: "10px 8px",
+                                border: "1px solid #eef0f3",
+                                borderRadius: 10,
+                                marginBottom: 8,
+                                background: "#fff",
+                              }}
+                            >
+                              <img
+                                src={nv.profileImage || vendorImg}
+                                alt={nv.name}
+                                onError={(e) => {
+                                  e.currentTarget.src = vendorImg;
+                                }}
+                                style={{
+                                  width: 44,
+                                  height: 44,
+                                  borderRadius: "50%",
+                                  objectFit: "cover",
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div
+                                  style={{
+                                    fontSize: 13,
+                                    fontWeight: 700,
+                                    color: "#111",
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                  }}
+                                  title={nv.name}
+                                >
+                                  {nv.name}
+                                </div>
+                                <div
+                                  style={{ fontSize: 11, color: "#8a8f98" }}
+                                >
+                                  {nv.serviceType || nv.city || ""}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="btn btn-outline-danger btn-sm"
+                                style={{ fontSize: 11, padding: "4px 10px" }}
+                                onClick={() =>
+                                  navigate(`/vendor-details/${nv.vendorId}`)
+                                }
+                              >
+                                View Profile
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
                         <div
                           style={{
                             fontSize: 12,
@@ -2320,7 +2431,7 @@ const OngoingLeadDetails = () => {
                         >
                           No vendors notified yet.
                         </div>
-                      )}
+                      ))}
 
                     {notifiedVendors.length > 0 && (
                       <div
