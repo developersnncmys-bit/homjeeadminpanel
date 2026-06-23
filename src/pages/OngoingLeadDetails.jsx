@@ -657,9 +657,9 @@ const OngoingLeadDetails = () => {
       if (notifiedLoading || notifiedError) return;
       if (notifiedVendors.length > 0) return;
       if (nearbyVendors.length === 0) return;
-      // Only paid leads can be fanned out. Unpaid enquiries (isEnquiry
-      // still true) get rejected by the backend with 400.
-      if (booking?.isEnquiry !== false) return;
+      // Backend now accepts enquiries too — it shallow-clones the
+      // booking with isEnquiry:false before fanning out, so the persisted
+      // row's payment state is untouched. We just need it to run.
       if (autoFanoutTriedRef.current) return;
       autoFanoutTriedRef.current = true;
 
