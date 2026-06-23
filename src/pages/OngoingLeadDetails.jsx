@@ -3036,18 +3036,17 @@ const OngoingLeadDetails = () => {
                   </div>
 
                   {measurementsLoading ? null : measurementsError ? (
-                    // "Measurement not found" comes through here as an
-                    // error message (the API treats it as 404). Render
-                    // it with the same neutral empty-state style as
-                    // "No quotations created yet" — pink/red read as
-                    // a hard failure to admins when it's just a normal
-                    // empty state.
+                    // Admin wants both this card AND the Quotes Summary
+                    // empty state to share the soft-pink look the
+                    // Measurement card originally had — light red
+                    // background, soft border. Quotes Summary mirrors
+                    // this style below.
                     <div
                       style={{
                         fontSize: 12,
                         color: "#6c757d",
-                        background: "#f8f9fa",
-                        border: "1px dashed #dee2e6",
+                        background: "#fdecea",
+                        border: "1px solid #f5c2c7",
                         padding: "10px 12px",
                         borderRadius: 10,
                       }}
@@ -3200,8 +3199,8 @@ const OngoingLeadDetails = () => {
                       style={{
                         fontSize: 12,
                         color: "#6c757d",
-                        background: "#f8f9fa",
-                        border: "1px dashed #dee2e6",
+                        background: "#fdecea",
+                        border: "1px solid #f5c2c7",
                         padding: "10px 12px",
                         borderRadius: 10,
                       }}
@@ -3272,12 +3271,14 @@ const OngoingLeadDetails = () => {
                 )}
 
                 {!quotesLoading && quotes.length === 0 && !quotesError && (
+                  // Matches the Measurement Summary empty state — soft
+                  // pink background per admin spec.
                   <div
                     style={{
                       fontSize: 12,
                       color: "#6c757d",
-                      background: "#f8f9fa",
-                      border: "1px dashed #dee2e6",
+                      background: "#fdecea",
+                      border: "1px solid #f5c2c7",
                       padding: "10px 12px",
                       borderRadius: 10,
                     }}
