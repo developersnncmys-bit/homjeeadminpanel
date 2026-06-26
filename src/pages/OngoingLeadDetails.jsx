@@ -49,6 +49,29 @@ const getStatusColor = (status) => {
 
 const RESCHEDULE_ALLOWED_STATUSES = ["pending", "confirmed", "rescheduled"];
 
+// Format a date/time as "dd/mm/yyyy hh:mm AM/PM" in IST. The "Vendor Received"
+// timestamps were rendered in the viewer's local timezone (no timeZone passed
+// to toLocaleString), so they showed the wrong time on any non-IST machine.
+// Forcing Asia/Kolkata makes them correct for everyone. Returns "" for
+// missing/invalid input so callers can hide the line.
+const fmtIST = (value) => {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d
+    .toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "Asia/Kolkata",
+    })
+    .replace(",", "")
+    .replace(/\b(am|pm)\b/g, (m) => m.toUpperCase());
+};
+
 const OngoingLeadDetails = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
@@ -1226,6 +1249,19 @@ const OngoingLeadDetails = () => {
   const bookingSlotTime =
     booking?.selectedSlot?.slotTime || booking?.bookingDetails?.bookingTime;
 
+  // Original (first) slot the customer booked, preserved by the backend across
+  // reschedules. Shown alongside the current slot so admin can see the
+  // pre-reschedule booking date & time. Only present once the lead has been
+  // rescheduled.
+  const originalSlotDate = booking?.originalSlot?.slotDate;
+  const originalSlotTime = booking?.originalSlot?.slotTime;
+  const hasOriginalSlot = Boolean(originalSlotDate || originalSlotTime);
+  // Hide it when it's identical to the current slot (no real reschedule).
+  const isRescheduled =
+    hasOriginalSlot &&
+    (String(originalSlotDate || "") !== String(bookingSlotDate || "") ||
+      String(originalSlotTime || "") !== String(bookingSlotTime || ""));
+
   const normalizedStatus = String(
     booking?.bookingDetails?.status || "",
   ).toLowerCase();
@@ -1355,15 +1391,40 @@ const OngoingLeadDetails = () => {
               </div>
 
               <div style={{ textAlign: "right" }}>
+                {isRescheduled && (
+                  <div style={{ fontSize: 11, color: "#9aa0a6", marginBottom: 2 }}>
+                    Rescheduled
+                  </div>
+                )}
                 <div style={{ fontSize: 14 }}>
                   {bookingSlotDate
                     ? new Date(bookingSlotDate).toLocaleDateString("en-GB")
                     : "N/A"}
                 </div>
 
-                <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                <div style={{ fontWeight: 700, marginBottom: isRescheduled ? 4 : 8 }}>
                   {bookingSlotTime || "N/A"}
                 </div>
+
+                {/* Original booking slot, shown only after a reschedule. */}
+                {isRescheduled && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "#8a8f98",
+                      marginBottom: 8,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    <span style={{ textDecoration: "line-through" }}>
+                      Original:{" "}
+                      {originalSlotDate
+                        ? new Date(originalSlotDate).toLocaleDateString("en-GB")
+                        : "N/A"}{" "}
+                      {originalSlotTime || ""}
+                    </span>
+                  </div>
+                )}
 
                 <div
                   style={{ display: "flex", flexDirection: "column", gap: 8 }}
@@ -2549,20 +2610,7 @@ const OngoingLeadDetails = () => {
                                 <div
                                   style={{ fontSize: 11, color: "#8a8f98" }}
                                 >
-                                  Vendor Received:{" "}
-                                  {new Date(nv.invitedAt)
-                                    .toLocaleString("en-GB", {
-                                      day: "2-digit",
-                                      month: "2-digit",
-                                      year: "numeric",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                      hour12: true,
-                                    })
-                                    .replace(",", "")
-                                    .replace(/\b(am|pm)\b/g, (m) =>
-                                      m.toUpperCase(),
-                                    )}
+                                  Vendor Received: {fmtIST(nv.invitedAt)}
                                 </div>
                               )}
 
@@ -2661,10 +2709,23 @@ const OngoingLeadDetails = () => {
                         const alreadyNotified = notifiedVendors.some(
                           (nv) => String(nv.vendorId) === String(v?._id),
                         );
+                        const name =
+                          v?.vendor?.vendorName || "Unnamed Vendor";
+                        // Wallet balance + team availability are shown for the
+                        // admin's reference ONLY — they do NOT filter the list.
+                        // Every city vendor stays listed regardless of coins or
+                        // team status so admin can override the auto-fanout and
+                        // notify anyone. statusLabel comes from the backend
+                        // (Live / Low Coins / Team Unavailable).
+                        const coins = Number(v?.wallet?.coins || 0);
+                        const teamCount = Array.isArray(v?.team)
+                          ? v.team.length
+                          : 0;
+                        const availability = v?.statusLabel || "Live";
+                        const meta = `${coins} coins · ${teamCount} team · ${availability}`;
                         return (
                           <option key={v._id} value={v._id}>
-                            {v?.vendor?.vendorName || "Unnamed Vendor"}
-                            {alreadyNotified ? " (already notified)" : ""}
+                            {`${name} — ${meta}${alreadyNotified ? " · already notified" : ""}`}
                           </option>
                         );
                       })}
@@ -2738,17 +2799,7 @@ const OngoingLeadDetails = () => {
                       <span className="text-muted">Vendor Received:</span>{" "}
                       <strong>
                         {booking?.createdDate
-                          ? new Date(booking.createdDate)
-                              .toLocaleString("en-GB", {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                hour12: true,
-                              })
-                              .replace(",", "")
-                              .replace(/\b(am|pm)\b/g, (m) => m.toUpperCase())
+                          ? fmtIST(booking.createdDate)
                           : "N/A"}
                       </strong>
                     </p>
@@ -2804,6 +2855,29 @@ const OngoingLeadDetails = () => {
                           : "N/A"}
                       </strong>
                     </p>
+
+                    {/* Original (pre-reschedule) booking slot. Only shown once
+                        the lead has actually been rescheduled. */}
+                    {isRescheduled && (
+                      <p className="mb-1" style={{ fontSize: 13 }}>
+                        <span className="text-muted">
+                          Original Booking Date &amp; Time:
+                        </span>{" "}
+                        <strong>
+                          {originalSlotDate
+                            ? new Date(originalSlotDate).toLocaleDateString(
+                                "en-GB",
+                                {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                },
+                              )
+                            : "N/A"}{" "}
+                          {originalSlotTime || ""}
+                        </strong>
+                      </p>
+                    )}
                   </div>
 
                   {isTeamMismatch && (
@@ -2956,20 +3030,7 @@ const OngoingLeadDetails = () => {
 
                             {nv.invitedAt && (
                               <div style={{ fontSize: 11, color: "#8a8f98" }}>
-                                Notified{" "}
-                                {new Date(nv.invitedAt)
-                                  .toLocaleString("en-GB", {
-                                    day: "2-digit",
-                                    month: "2-digit",
-                                    year: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                    hour12: true,
-                                  })
-                                  .replace(",", "")
-                                  .replace(/\b(am|pm)\b/g, (m) =>
-                                    m.toUpperCase(),
-                                  )}
+                                Notified {fmtIST(nv.invitedAt)}
                               </div>
                             )}
 
