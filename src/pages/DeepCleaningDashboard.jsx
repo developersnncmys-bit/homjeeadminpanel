@@ -20,23 +20,23 @@ const DEEP_CLEANING_DATA = [
     subcategories: [
       {
         subcategory: "1 BHK Cleaning",
-        services: ["Classic", "Premium", "Platinum"],
+        services: ["Classic", "Premium", "Ultimate"],
       },
       {
         subcategory: "2 BHK Cleaning",
-        services: ["Classic", "Premium", "Platinum"],
+        services: ["Classic", "Premium", "Ultimate"],
       },
       {
         subcategory: "3 BHK Cleaning",
-        services: ["Classic", "Premium", "Platinum"],
+        services: ["Classic", "Premium", "Ultimate"],
       },
       {
         subcategory: "4 BHK Cleaning",
-        services: ["Classic", "Premium", "Platinum"],
+        services: ["Classic", "Premium", "Ultimate"],
       },
       {
         subcategory: "5+ BHK Cleaning",
-        services: ["Classic", "Premium", "Platinum"],
+        services: ["Classic", "Premium", "Ultimate"],
       },
     ],
   },
