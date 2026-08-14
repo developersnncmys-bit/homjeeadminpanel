@@ -115,31 +115,31 @@ const DEEP_CLEANING_DATA = [
     subcategories: [
       {
         subcategory: "<1200 sqft Bungalow Cleaning",
-        services: ["Classic", "Premium", "Platinum"],
+        services: ["Classic", "Premium", "Ultimate"],
       },
       {
         subcategory: "1200-2000 sqft Bungalow Cleaning",
-        services: ["Classic", "Premium", "Platinum"],
+        services: ["Classic", "Premium", "Ultimate"],
       },
       {
         subcategory: "2000-3000 sqft Bungalow Cleaning",
-        services: ["Classic", "Premium", "Platinum"],
+        services: ["Classic", "Premium", "Ultimate"],
       },
       {
         subcategory: "3000-4000 sqft Bungalow Cleaning",
-        services: ["Classic", "Premium", "Platinum"],
+        services: ["Classic", "Premium", "Ultimate"],
       },
       {
         subcategory: "4000-5000 sqft Bungalow Cleaning",
-        services: ["Classic", "Premium", "Platinum"],
+        services: ["Classic", "Premium", "Ultimate"],
       },
       {
         subcategory: "5000-6000 sqft Bungalow Cleaning",
-        services: ["Classic", "Premium", "Platinum"],
+        services: ["Classic", "Premium", "Ultimate"],
       },
       {
         subcategory: "6000-7000 sqft Bungalow Cleaning",
-        services: ["Classic", "Premium", "Platinum"],
+        services: ["Classic", "Premium", "Ultimate"],
       },
     ],
   },
@@ -149,9 +149,9 @@ const DEEP_CLEANING_DATA = [
       {
         subcategory: "Kitchen Appliances Cleaning",
         services: [
+          "Gas Stove",
           "Chimney",
           "Microwave",
-          "Stove",
           "Single Door Fridge",
           "Double Door Fridge",
         ],
@@ -159,14 +159,18 @@ const DEEP_CLEANING_DATA = [
       {
         subcategory: "Sofa & Upholstery Wet Shampooing",
         services: [
-          "Sofa (5 seats)",
-          "Carpet (upto 25 sqft)",
+          "3 Seater Sofa",
+          "5 Seater Sofa",
+          "Single mattress",
+          "Double Mattress",
           "Cushion Chair",
-          "Mattress",
         ],
       },
       { subcategory: "Utensil Removal & Placement", services: [] },
-      { subcategory: "Cabinet Cleaning (Upto 2)", services: [] },
+      {
+        subcategory: "Window Cleaning",
+        services: ["Standard Window Cleaning", "Balcony & Sliding Door Cleaning"],
+      },
       { subcategory: "Furniture Wet Wiping", services: [] },
       { subcategory: "Ceiling Dusting & Cobweb Removal", services: [] },
     ],
