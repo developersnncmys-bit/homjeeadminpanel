@@ -100,14 +100,6 @@ const DEEP_CLEANING_DATA = [
         subcategory: "4000-5000 sqft Bungalow Cleaning",
         services: ["Classic", "Premium"],
       },
-      {
-        subcategory: "5000-6000 sqft Bungalow Cleaning",
-        services: ["Classic", "Premium"],
-      },
-      {
-        subcategory: "6000-7000 sqft Bungalow Cleaning",
-        services: ["Classic", "Premium"],
-      },
     ],
   },
   {
@@ -131,14 +123,6 @@ const DEEP_CLEANING_DATA = [
       },
       {
         subcategory: "4000-5000 sqft Bungalow Cleaning",
-        services: ["Classic", "Premium", "Ultimate"],
-      },
-      {
-        subcategory: "5000-6000 sqft Bungalow Cleaning",
-        services: ["Classic", "Premium", "Ultimate"],
-      },
-      {
-        subcategory: "6000-7000 sqft Bungalow Cleaning",
         services: ["Classic", "Premium", "Ultimate"],
       },
     ],
