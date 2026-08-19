@@ -63,12 +63,7 @@ const DEEP_CLEANING_DATA = [
       },
       {
         subcategory: "Kitchen Cleaning",
-        services: [
-          "Occupied Kitchen",
-          "Occupied Kitchen With Appliances",
-          "Empty Kitchen",
-          "Empty Kitchen With Appliances",
-        ],
+        services: ["Occupied Kitchen", "Empty Kitchen"],
       },
       { subcategory: "Bathroom Cleaning", services: [] }, // service=""
       {
