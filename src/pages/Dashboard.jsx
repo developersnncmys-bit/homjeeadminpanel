@@ -162,9 +162,24 @@ const calculatePeriod = (type) => {
   return { start: toYMD(start), end: toYMD(end) };
 };
 
+// Only these statuses count as an ongoing project on the dashboard, and the
+// list differs by service type.
+const HP_ONGOING_STATUSES = [
+  "hired",
+  "project ongoing",
+  "waiting for final payment",
+];
+const DC_ONGOING_STATUSES = [
+  "confirmed", // a vendor has responded to the lead
+  "job ongoing",
+  "waiting for final payment",
+];
 const isOngoingLead = (lead) => {
   const status = String(lead?.bookingDetails?.status || "").toLowerCase();
-  return !NON_ONGOING_STATUSES.map((s) => String(s).toLowerCase()).includes(status);
+  const svc = String(lead?.serviceType || "").toLowerCase();
+  if (svc === "house_painting") return HP_ONGOING_STATUSES.includes(status);
+  if (svc === "deep_cleaning") return DC_ONGOING_STATUSES.includes(status);
+  return false;
 };
 
 /** --------------------------
@@ -492,6 +507,7 @@ const Dashboard = () => {
 
       let bookingPaidTotal = 0;
       let bookingPendingTotal = 0;
+      let bookingUnpaidTotal = 0;
       let cash = 0;
       let online = 0;
 
@@ -503,6 +519,13 @@ const Dashboard = () => {
 
         bookingPaidTotal += Number(t?.paid?.overallPaid || 0);
         bookingPendingTotal += Number(t?.remaining?.overallPending || 0);
+
+        // Amount Unpaid = full booking value still unpaid (finalTotal - paid).
+        const finalTotal = Number(b.finalTotal || b.originalTotalAmount || 0);
+        bookingUnpaidTotal += Math.max(
+          finalTotal - Number(t?.paid?.overallPaid || 0),
+          0
+        );
 
         cash += Number(t?.bookingCash || 0);
         online += Number(t?.bookingOnline || 0);
@@ -531,33 +554,16 @@ const Dashboard = () => {
 
       const totalSales = bookingPaidTotal + manualPaid;
       const totalPending = bookingPendingTotal + manualPending;
+      const amountUnpaid = bookingUnpaidTotal + manualPending;
 
       const ongoing = leads.filter(isOngoingLead).length;
-
-      const upcoming = leads.filter((l) => {
-        const status = String(l?.bookingDetails?.status || "").toLowerCase();
-        if (NON_UPCOMING_STATUSES.includes(status)) return false;
-
-        const slotDate = l?.selectedSlot?.slotDate;
-        if (!slotDate) return false;
-
-        const d = new Date(slotDate);
-        const t = new Date();
-
-        const diff =
-          (new Date(d.getFullYear(), d.getMonth(), d.getDate()) -
-            new Date(t.getFullYear(), t.getMonth(), t.getDate())) /
-          (1000 * 60 * 60 * 24);
-
-        return diff === 1 || diff === 2;
-      }).length;
 
       setUpdatedKeyMetrics([
         { title: "Total Sales", value: totalSales },
         { title: "Amount Yet to Be Collected", value: totalPending },
+        { title: "Amount Unpaid", value: amountUnpaid },
         { title: "Total Leads", value: leads.length },
         { title: "Ongoing Projects", value: ongoing },
-        { title: "Upcoming Projects", value: upcoming },
       ]);
     } catch (e) {
       console.error("Dashboard handleSearch error:", e);
@@ -585,8 +591,11 @@ const Dashboard = () => {
     [leadsRaw, cityOptions]
   );
 
-  const last4Enquiries = enquiries.slice(-4);
-  const last4Leads = newLeads.slice(-4);
+  // Show the 4 most recent, newest first. The source arrays are chronological
+  // (oldest→newest), so slice(-4) already picks the latest four; reverse() then
+  // puts the most recent card on the left.
+  const last4Enquiries = enquiries.slice(-4).reverse();
+  const last4Leads = newLeads.slice(-4).reverse();
 
   const openDetails = (id, type) => {
     if (type === "enq") navigate(`/enquiry-details/${id}`);
@@ -748,7 +757,9 @@ const Dropdown = ({ value, onChange, options, disabled = false }) => (
 /** Cards */
 const MetricCard = ({ title, value }) => {
   const isRupee =
-    title === "Total Sales" || title === "Amount Yet to Be Collected";
+    title === "Total Sales" ||
+    title === "Amount Yet to Be Collected" ||
+    title === "Amount Unpaid";
 
   return (
     <div style={styles.metricCard}>
