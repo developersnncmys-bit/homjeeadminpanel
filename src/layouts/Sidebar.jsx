@@ -42,7 +42,6 @@ const Sidebar = ({ isOpen }) => {
     { name: "Vendors", path: "/vendors-list", icon: <MdPeopleAlt /> },
     { name: "Products", path: "/product", icon: <MdCategory /> },
     // { name: "Push Notifications", path: "/notification", icon: <MdNotificationsActive /> },
-    { name: "Whatsapp Notifications", path: "/whtsapp", icon: <MdMessage /> },
     { name: "Setting", path: "/setting", icon: <MdSettings /> },
     {
       name: "Log out",

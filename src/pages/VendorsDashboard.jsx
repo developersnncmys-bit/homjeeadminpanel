@@ -114,17 +114,13 @@ const VendorsDashboard = () => {
 
         setCities(list);
 
-        // ✅ default select = first city from API response
-        if (list.length > 0) {
-          setCity(list[0]?.city || "");
-          fetchVendors(1, { city: list[0]?.city || "" }); // ✅ optional: auto-load vendors for first city
-        } else {
-          setCity("");
-        }
+        // Default stays "All Cities" — load all vendors, not just one city.
+        setCity("All Cities");
+        fetchVendors(1, { city: "All Cities" });
       } catch (err) {
         console.error("Error fetching city list:", err);
         setCities([]);
-        setCity("");
+        setCity("All Cities");
       }
     };
 

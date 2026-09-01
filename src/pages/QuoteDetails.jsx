@@ -663,6 +663,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { Button } from "react-bootstrap";
+import { BASE_URL } from "../utils/config";
 import {
   FaArrowLeft,
   FaCopy,
@@ -1246,7 +1247,7 @@ const QuoteDetails = () => {
       }
 
       const res = await fetch(
-        `http://localhost:9000/api/quotations/get-quotes/${quoteId}`,
+        `${BASE_URL}/quotations/get-quotes/${quoteId}`,
       );
       const json = await res.json();
 

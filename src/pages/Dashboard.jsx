@@ -480,7 +480,10 @@ const Dashboard = () => {
       const leads = leadsRes.data?.allLeads || [];
       const manualAll = manualRes.data?.data || [];
 
-      setEnquiriesRaw(enqs);
+      // Don't show dismissed enquiries on the dashboard.
+      const visibleEnqs = enqs.filter((e) => !(e?.isDismmised || e?.isDismissed));
+
+      setEnquiriesRaw(visibleEnqs);
       setLeadsRaw(leads);
 
       // ✅ Filter manual payments by the same period + service + city

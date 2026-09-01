@@ -718,6 +718,7 @@ const VendorDetailsPage = () => {
         statusLabel: vendorData.statusLabel || "Live",
         statusColor: vendorData.statusColor || "#28a745",
         isArchived: vendorData.isArchived === true,
+        shadowBanned: vendorData.shadowBanned === true,
         archivedAt: vendorData.archivedAt || null,
         archiveReason: vendorData.archiveReason || "",
         rating: 4.5,
@@ -949,6 +950,47 @@ const VendorDetailsPage = () => {
   };
 
   const [archiving, setArchiving] = useState(false);
+
+  const handleShadowBanToggle = async () => {
+    if (!selectedVendor) return;
+    const next = !selectedVendor.shadowBanned;
+
+    const ok = await confirm({
+      title: next ? "Shadow ban vendor?" : "Remove shadow ban?",
+      message: next
+        ? `"${selectedVendor.name}" will keep using the app normally, but will receive NO new leads.`
+        : `"${selectedVendor.name}" will start receiving new leads again.`,
+      variant: next ? "danger" : "success",
+      confirmLabel: next ? "Shadow Ban" : "Remove",
+      cancelLabel: "Cancel",
+    });
+    if (!ok) return;
+
+    try {
+      setArchiving(true);
+      const { data } = await axios.put(
+        `${BASE_URL}/vendor/shadow-ban-vendor/${selectedVendor.id}`,
+        { shadowBanned: next },
+      );
+      const updated = data?.vendor;
+      setSelectedVendor((prev) =>
+        prev ? { ...prev, shadowBanned: updated?.shadowBanned === true } : prev,
+      );
+      await notify({
+        title: "Done",
+        message: data?.message || "Updated",
+        variant: "success",
+      });
+    } catch (e) {
+      await notify({
+        title: "Error",
+        message: e?.response?.data?.message || "Failed to update shadow ban",
+        variant: "danger",
+      });
+    } finally {
+      setArchiving(false);
+    }
+  };
 
   const handleArchiveToggle = async () => {
     if (!selectedVendor) return;
@@ -1276,6 +1318,7 @@ const VendorDetailsPage = () => {
             vendor={selectedVendor}
             onEditVendor={() => openEditVendorModal(selectedVendor)}
             onArchiveToggle={handleArchiveToggle}
+            onShadowBanToggle={handleShadowBanToggle}
             archiving={archiving}
           />
 

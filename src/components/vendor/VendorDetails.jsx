@@ -23,12 +23,14 @@ const VendorDetails = ({
   onEditVendor,
   onBack,
   onArchiveToggle,
+  onShadowBanToggle,
   archiving = false,
 }) => {
   const { notify } = useDialog();
   if (!vendor) return null;
 
   const isArchived = vendor.isArchived === true;
+  const shadowBanned = vendor.shadowBanned === true;
 
   return (
     <>
@@ -184,6 +186,22 @@ const VendorDetails = ({
                   )}
                 </Button>
               )}
+
+              {typeof onShadowBanToggle === "function" && (
+                <Button
+                  variant={shadowBanned ? "success" : "outline-secondary"}
+                  onClick={onShadowBanToggle}
+                  disabled={archiving}
+                  style={{
+                    fontSize: 12,
+                    borderRadius: 10,
+                    padding: "8px 12px",
+                  }}
+                  title="Shadow-banned vendors keep app access but get no new leads"
+                >
+                  {shadowBanned ? "Remove Shadow Ban" : "Shadow Ban"}
+                </Button>
+              )}
             </div>
           </div>
         </Card.Body>
@@ -260,12 +278,6 @@ const VendorDetails = ({
                     {vendor.workingSince} (
                     {new Date().getFullYear() - vendor.workingSince} years)
                   </td>
-                </tr>
-                <tr>
-                  <td>
-                    <strong>Capacity:</strong>
-                  </td>
-                  <td>{vendor.capacity} jobs at a time</td>
                 </tr>
                 <tr>
                   <td>

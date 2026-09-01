@@ -1139,7 +1139,15 @@ const OngoingLeadDetails = () => {
 
   const handleCancelBooking = async () => {
     try {
-      if (!refundAmount || refundAmount < 0) {
+      // Allow a refund of 0 (e.g. a new/unpaid lead has nothing to refund).
+      const refundNum = Number(refundAmount);
+      if (
+        refundAmount === "" ||
+        refundAmount === null ||
+        refundAmount === undefined ||
+        Number.isNaN(refundNum) ||
+        refundNum < 0
+      ) {
         alert("Please enter valid refund amount");
         return;
       }
