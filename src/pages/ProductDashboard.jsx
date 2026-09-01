@@ -137,7 +137,10 @@ const ProductsDashboard = () => {
   const [cities, setCities] = useState([]);
   const [pricingConfig, setPricingConfig] = useState(null);
   const navigate = useNavigate();
-  const [category, setCategory] = useState("All Categories");
+  // This page is the House Painting product pricing screen; the dropdown only
+  // has House Painting / Deep Cleaning, so default to a real option (the old
+  // "All Categories" default matched no option and made the filter jump).
+  const [category, setCategory] = useState("House Painting");
   const [showModal, setShowModal] = useState(false);
   const [selectedProductType, setSelectedProductType] = useState("");
   const [editingProduct, setEditingProduct] = useState(null);
