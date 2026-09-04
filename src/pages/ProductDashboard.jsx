@@ -159,7 +159,19 @@ const ProductsDashboard = () => {
         const res = await axios.get(`${BASE_URL}/city/city-list`);
         const list = Array.isArray(res?.data?.data) ? res.data.data : [];
         setCities(list);
-        if (list.length > 0) setCity(list[0]?.city || "");
+        if (list.length > 0) {
+          // Restore the city chosen on the sibling (Deep Cleaning) dashboard
+          // so switching the service dropdown doesn't reset it to the first
+          // city (#10).
+          let saved = "";
+          try {
+            saved = localStorage.getItem("hj_admin_selected_city") || "";
+          } catch (e) {
+            saved = "";
+          }
+          const match = saved && list.find((c) => c?.city === saved);
+          setCity(match ? match.city : list[0]?.city || "");
+        }
       } catch (err) {
         console.error("Error fetching city list:", err);
         setCities([]);
@@ -524,7 +536,14 @@ const ProductsDashboard = () => {
         <div className="d-flex gap-2">
           <Form.Select
             value={city || ""}
-            onChange={(e) => setCity(e.target.value)}
+            onChange={(e) => {
+              setCity(e.target.value);
+              try {
+                localStorage.setItem("hj_admin_selected_city", e.target.value);
+              } catch (err) {
+                /* ignore */
+              }
+            }}
             style={{ height: "36px", fontSize: "12px" }}
           >
             {cities.map((c) => (

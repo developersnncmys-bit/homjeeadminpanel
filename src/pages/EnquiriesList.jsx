@@ -8,6 +8,21 @@ import { formatReminderWhen } from "../utils/helpers";
 
 const genUID = () => `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
+// Enquiry timestamps are stored as UTC instants; always render them in IST so
+// the time is correct regardless of the admin's machine timezone (#3).
+const IST = "Asia/Kolkata";
+const istDate = (iso) =>
+  iso ? new Date(iso).toLocaleDateString("en-GB", { timeZone: IST }) : "";
+const istTime = (iso) =>
+  iso
+    ? new Date(iso).toLocaleTimeString("en-IN", {
+        timeZone: IST,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+    : "";
+
 const EnquiriesList = () => {
   const [showOld, setShowOld] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -62,10 +77,10 @@ const EnquiriesList = () => {
             ? new Date(booking.selectedSlot.slotDate).toLocaleDateString(
                 "en-GB",
               )
-            : new Date(booking.createdDate).toLocaleDateString("en-GB") || "—",
+            : istDate(booking.createdDate) || "—",
           time:
             booking?.selectedSlot?.slotTime ||
-            new Date(booking.createdDate).toLocaleTimeString() ||
+            istTime(booking.createdDate) ||
             "--",
           name: booking?.customer?.name || "",
           contact: booking?.customer?.phone
@@ -90,12 +105,8 @@ const EnquiriesList = () => {
           googleLocation: booking?.address?.location
             ? `https://maps.google.com/?q=${booking.address.location.coordinates[1]},${booking.address.location.coordinates[0]}`
             : "",
-          createdDate: booking?.createdDate
-            ? new Date(booking.createdDate).toLocaleDateString("en-GB")
-            : "",
-          createdTime: booking?.createdDate
-            ? new Date(booking.createdDate).toLocaleTimeString()
-            : "",
+          createdDate: booking?.createdDate ? istDate(booking.createdDate) : "",
+          createdTime: booking?.createdDate ? istTime(booking.createdDate) : "",
           raw: {
             ...booking,
             isRead: booking?.isRead || false,

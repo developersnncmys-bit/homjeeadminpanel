@@ -45,9 +45,16 @@ const EnquiryDetails = () => {
       if (!iso) return { d: "N/A", t: "N/A" };
       const dt = new Date(iso);
       if (isNaN(dt.getTime())) return { d: "N/A", t: "N/A" };
+      // Force IST — timestamps are stored as UTC instants, so without a
+      // timeZone the time shows the admin's machine timezone (#3).
       return {
-        d: dt.toLocaleDateString("en-IN"),
-        t: dt.toLocaleTimeString("en-IN"),
+        d: dt.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" }),
+        t: dt.toLocaleTimeString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        }),
       };
     } catch {
       return { d: "N/A", t: "N/A" };
@@ -83,7 +90,15 @@ const EnquiryDetails = () => {
 
       time:
         b.selectedSlot?.slotTime ||
-        new Date(b.bookingDetails?.bookingDate).toLocaleTimeString() ||
+        b.bookingDetails?.bookingTime ||
+        (b.bookingDetails?.bookingDate
+          ? new Date(b.bookingDetails.bookingDate).toLocaleTimeString("en-IN", {
+              timeZone: "Asia/Kolkata",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+            })
+          : "") ||
         "N/A",
 
       formName: b.formName || b.form || "N/A",

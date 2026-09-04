@@ -311,7 +311,19 @@ const DeepCleaningDashboard = () => {
         const res = await axios.get(`${BASE_URL}/city/city-list`);
         const list = Array.isArray(res?.data?.data) ? res.data.data : [];
         setCities(list);
-        if (list.length > 0) setCityId(list[0]?._id || "");
+        if (list.length > 0) {
+          // Restore the city chosen on the sibling (House Painting) dashboard
+          // so switching the service dropdown doesn't reset it to the first
+          // city (#10).
+          let saved = "";
+          try {
+            saved = localStorage.getItem("hj_admin_selected_city") || "";
+          } catch (e) {
+            saved = "";
+          }
+          const match = saved && list.find((c) => c?.city === saved);
+          setCityId(match ? match._id : list[0]?._id || "");
+        }
       } catch (e) {
         console.error("City list error:", e);
         setCities([]);
@@ -548,7 +560,16 @@ const DeepCleaningDashboard = () => {
         <div className="d-flex gap-2">
           <Form.Select
             value={cityId || ""}
-            onChange={(e) => setCityId(e.target.value)}
+            onChange={(e) => {
+              setCityId(e.target.value);
+              try {
+                const picked = cities.find((c) => c?._id === e.target.value);
+                if (picked?.city)
+                  localStorage.setItem("hj_admin_selected_city", picked.city);
+              } catch (err) {
+                /* ignore */
+              }
+            }}
             style={{ height: "36px", fontSize: "12px" }}
           >
             {cities.length === 0 ? (
