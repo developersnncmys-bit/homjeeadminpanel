@@ -20,10 +20,19 @@ const AllReminders = () => {
   }, []);
 
   const handleReminderClick = async (rem) => {
-    console.log("rem", rem?.bookingId?._id)
     await fetch(`${BASE_URL}/reminders/${rem._id}/check`, { method: "PATCH" });
 
-    navigate(`/enquiries/${rem?.bookingId?._id}`);
+    // Route to a real detail page: enquiry-details for enquiries,
+    // lead-details for leads (the old `/enquiries/:id` route didn't exist) (#9).
+    const b = rem?.bookingId;
+    const id = b?._id;
+    if (!id) {
+      navigate("/enquiries");
+      return;
+    }
+    navigate(
+      b?.isEnquiry === false ? `/lead-details/${id}` : `/enquiry-details/${id}`,
+    );
   };
 
   return (

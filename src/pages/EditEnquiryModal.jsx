@@ -3383,11 +3383,10 @@ export default function EditEnquiryModal({
                     type="number"
                     value={s.price}
                     onChange={(e) => onServiceChange(idx, "price", e.target.value)}
-                    // Was hardcoded `disabled={true}` so admins couldn't
-                    // change the amount when editing a pending enquiry,
-                    // even though every other field in the row honoured
-                    // canEditServices. Aligned with the row's other inputs.
-                    disabled={!canEditServices}
+                    // Editable for enquiries (per #6), but the House Painting
+                    // Site Visit charge is LOCKED once the record is a lead
+                    // (lead mode) — the lead is already generated (#12).
+                    disabled={!canEditServices || (isHP && leadMode)}
                   />
                 </Col>
 

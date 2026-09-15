@@ -107,6 +107,17 @@ export const NOTIFICATION_CONFIG = {
     getRoute: (n) => `/lead-details/${n.bookingId}`,
   },
 
+  // #9 — reminder fired; open the enquiry/lead it was set on.
+  REMINDER: {
+    color: "#0d6efd",
+    bg: "#e7f1ff",
+    icon: FaBell,
+    getRoute: (n) =>
+      n?.metaData?.isEnquiry === false
+        ? `/lead-details/${n.bookingId}`
+        : `/enquiry-details/${n.bookingId}`,
+  },
+
   DEFAULT: {
     color: "#6c757d",
     bg: "#f8f9fa",

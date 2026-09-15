@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   FaArrowLeft,
@@ -278,11 +278,18 @@ const EnquiryDetails = () => {
   /* ---------------------------
      Auto-mark-as-read
      --------------------------- */
+  // Auto-mark-read must run ONCE per opened enquiry. Without this guard the
+  // effect re-fired whenever `enquiry` state changed — so clicking "Mark as
+  // Unread" (which sets isRead:false in state) immediately re-marked it read,
+  // making the action land only sometimes (a race with navigation) (#10).
+  const autoReadDoneRef = useRef(false);
   useEffect(() => {
     if (!enquiry) return;
+    if (autoReadDoneRef.current) return;
 
     // ✅ don't auto-mark read if dismissed already
     if (!enquiry.raw?.isRead && !enquiry.raw?.isDismmised) {
+      autoReadDoneRef.current = true;
       (async () => {
         try {
           await updateStatusAPI("isRead", true);
@@ -294,6 +301,8 @@ const EnquiryDetails = () => {
           console.error("auto mark read failed:", err);
         }
       })();
+    } else {
+      autoReadDoneRef.current = true;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enquiry]);

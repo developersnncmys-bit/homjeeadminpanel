@@ -16,6 +16,8 @@ const VISIBLE_NOTIFICATION_TYPES = new Set([
   "LEAD_CANCELLED",
   "CUSTOMER_CANCEL_REQUESTED",
   "VENDOR_CANCEL_REQUESTED",
+  // #9 — surface reminder alerts when the reminder time arrives.
+  "REMINDER",
 ]);
 
 const Header = ({ toggleSidebar }) => {

@@ -1843,6 +1843,8 @@ const CreateLeadModal = ({ onClose }) => {
                   <option value="">Select Package</option>
                   {categories
                     .filter((p) => p.category === selectedSubCategory)
+                    // Show packages cheapest-first, like the website (#8).
+                    .sort((a, b) => toNum(a.totalAmount) - toNum(b.totalAmount))
                     .map((p) => (
                       <option key={p._id} value={p._id}>
                         {p.name} – ₹{toNum(p.totalAmount)}
