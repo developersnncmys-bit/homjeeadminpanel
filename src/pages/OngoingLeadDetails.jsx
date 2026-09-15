@@ -7,6 +7,7 @@ import {
   FaCopy,
   FaArrowLeft,
   FaEye,
+  FaFileInvoiceDollar,
 } from "react-icons/fa";
 import { Button } from "react-bootstrap";
 import { BASE_URL } from "../utils/config";
@@ -1512,7 +1513,21 @@ const OngoingLeadDetails = () => {
               {/* Payment Details */}
               <div className="card mb-3">
                 <div className="card-body">
-                  <h6 className="fw-bold">Payment Summary</h6>
+                  <div className="d-flex justify-content-between align-items-center">
+                    <h6 className="fw-bold mb-0">Payment Summary</h6>
+                    {/* Invoice icon replaces the old "Open Payment link" text (#3) */}
+                    {paymentLinkUrl && (
+                      <a
+                        href={paymentLinkUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Open payment invoice"
+                        style={{ color: "#d31a1a", fontSize: 18 }}
+                      >
+                        <FaFileInvoiceDollar />
+                      </a>
+                    )}
+                  </div>
 
                   {/* If first payment is not paid, show only site visit charges */}
                   {!firstPaymentPaid && (
@@ -1920,12 +1935,6 @@ const OngoingLeadDetails = () => {
                     </>
                   )}
 
-                  {paymentLinkUrl && (
-                    <a href={paymentLinkUrl} target="__balnk" rel="noreferrer">
-                      Open Payment link
-                    </a>
-                  )}
-
                   {shouldShowPayViaCash && !isProjectCompleted && (
                     <div
                       style={{
@@ -2237,13 +2246,19 @@ const OngoingLeadDetails = () => {
                         )}
 
                         {paymentLinkUrl && (
-                          <a
-                            href={paymentLinkUrl}
-                            target="__balnk"
-                            rel="noreferrer"
+                          <div
+                            style={{ display: "flex", justifyContent: "flex-end" }}
                           >
-                            Open Payment link
-                          </a>
+                            <a
+                              href={paymentLinkUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Open payment invoice"
+                              style={{ color: "#d31a1a", fontSize: 18 }}
+                            >
+                              <FaFileInvoiceDollar />
+                            </a>
+                          </div>
                         )}
 
                         {shouldShowPayViaCash && !isProjectCompleted && (

@@ -1190,6 +1190,43 @@ const CreateLeadModal = ({ onClose }) => {
   }, []);
 
   /* -----------------------------------------------------------
+     Per-city Site Visit Charge (#1)
+     House Painting booking amount should default to the selected city's
+     Site Visit Charge (from the product/pricing section), editable after.
+  ------------------------------------------------------------ */
+  const getCitySiteVisitCharge = async (cityName) => {
+    try {
+      if (!cityName || !String(cityName).trim()) return null;
+      const res = await axios.get(
+        `${BASE_URL}/service/get-pricing-config/city/${encodeURIComponent(
+          String(cityName).trim(),
+        )}`,
+      );
+      const val = res?.data?.data?.siteVisitCharge;
+      return val === undefined || val === null ? null : clamp0(val);
+    } catch (err) {
+      console.error("Error fetching city site visit charge:", err);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    if (leadData.serviceType !== "House Painting") return;
+    if (!leadData.city || !String(leadData.city).trim()) return;
+    let cancelled = false;
+    (async () => {
+      const siteVisit = await getCitySiteVisitCharge(leadData.city);
+      if (!cancelled && siteVisit != null) {
+        setLeadData((prev) => ({ ...prev, bookingAmount: siteVisit }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leadData.serviceType, leadData.city]);
+
+  /* -----------------------------------------------------------
      Fetch Existing User (UNCHANGED)
   ------------------------------------------------------------ */
   const fetchExistingUser = async (mobile) => {
@@ -1505,8 +1542,13 @@ const CreateLeadModal = ({ onClose }) => {
       );
 
       onClose();
-      navigate(`${clamp0(leadData.bookingAmount) === 0 ? "/newleads" : "/enquiries"}`);
-      window.location.reload();
+      // Navigate via the router only. A hard window.location.reload() here
+      // issued a real GET for the SPA path and showed the host's 404
+      // ("page doesn't exist"); the list page refetches on mount anyway (#2).
+      navigate(
+        clamp0(leadData.bookingAmount) === 0 ? "/newleads" : "/enquiries",
+        { replace: true },
+      );
     } catch (err) {
       console.error(err);
       toast.error(err?.response?.data?.message || "Save failed");
@@ -1524,30 +1566,28 @@ const CreateLeadModal = ({ onClose }) => {
     invalidateSlot();
 
     if (val === "House Painting") {
-      try {
-        const resp = await axios.get(`${BASE_URL}/service/latest`);
-        const siteVisit = clamp0(resp?.data?.data?.siteVisitCharge);
+      // Default the booking amount to the SELECTED CITY's Site Visit Charge
+      // (not the global latest config, which showed a stale value like 10).
+      // The effect on [serviceType, city] also keeps this in sync; admin can
+      // still edit the field afterwards (#1).
+      const siteVisit = await getCitySiteVisitCharge(leadData.city);
 
-        setLeadData((prev) => ({
-          ...prev,
-          serviceType: val,
-          packages: [],
-          selectedPackage: "",
-          totalAmount: 0,
-          bookingAmount: siteVisit,
-          amountYetToPay: 0,
-        }));
+      setLeadData((prev) => ({
+        ...prev,
+        serviceType: val,
+        packages: [],
+        selectedPackage: "",
+        totalAmount: 0,
+        bookingAmount: siteVisit != null ? siteVisit : clamp0(prev.bookingAmount),
+        amountYetToPay: 0,
+      }));
 
-        // discount reset
-        setOriginalTotal(0);
-        setDiscountApplied(false);
-        setDiscountValue("");
-        setSelectedSubCategory("");
-        setCategories([]);
-      } catch (err) {
-        console.error(err);
-        toast.error("Failed to load service config");
-      }
+      // discount reset
+      setOriginalTotal(0);
+      setDiscountApplied(false);
+      setDiscountValue("");
+      setSelectedSubCategory("");
+      setCategories([]);
       return;
     }
 

@@ -98,6 +98,15 @@ export const NOTIFICATION_CONFIG = {
     getRoute: (n) => `/lead-details/${n.bookingId}`,
   },
 
+  // #5 — a lead was cancelled; open its description so admin can review the
+  // refund.
+  LEAD_CANCELLED: {
+    color: "#dc3545",
+    bg: "#fdecea",
+    icon: FaExclamationTriangle,
+    getRoute: (n) => `/lead-details/${n.bookingId}`,
+  },
+
   DEFAULT: {
     color: "#6c757d",
     bg: "#f8f9fa",

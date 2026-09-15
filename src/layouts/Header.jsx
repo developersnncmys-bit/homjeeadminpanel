@@ -12,6 +12,10 @@ import { BASE_URL } from "../utils/config";
 const VISIBLE_NOTIFICATION_TYPES = new Set([
   "NEW_ENQUIRY_CREATED",
   "NEW_LEAD_CREATED",
+  // #5 — surface cancellations so admin can decide/adjust the refund.
+  "LEAD_CANCELLED",
+  "CUSTOMER_CANCEL_REQUESTED",
+  "VENDOR_CANCEL_REQUESTED",
 ]);
 
 const Header = ({ toggleSidebar }) => {

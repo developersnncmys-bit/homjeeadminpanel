@@ -3232,8 +3232,11 @@ export default function EditEnquiryModal({
             </Col>
           </Row>
 
-          {/* SLOT */}
-          {(isPendingBooking || leadMode) && (
+          {/* SLOT — show the slot picker whenever the enquiry is editable
+              (pending / rescheduled / customer unreachable / lead mode), so an
+              admin-generated enquiry can change its slot just like a website
+              one (#6). */}
+          {(canEditServices || isPendingBooking || leadMode) && (
             <div className="d-flex justify-content-between mb-2">
               <div className="d-flex flex-column mb-2">
                 <div className="d-flex justify-content-between align-items-center">
