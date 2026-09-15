@@ -1163,7 +1163,11 @@ const OngoingLeadDetails = () => {
       let apiUrl = "";
 
       // ✅ CASE 1: Already cancelled → approve refund
-      if (status === "Customer Cancelled" || status === "Cancelled") {
+      if (
+        status === "Customer Cancelled" ||
+        status === "Cancelled" ||
+        status === "Admin Cancelled"
+      ) {
         apiUrl = `${BASE_URL}/bookings/approve-cancel-booking/refund/admin`;
       }
       // ✅ CASE 2: Admin cancelling now
@@ -1186,6 +1190,35 @@ const OngoingLeadDetails = () => {
     } catch (err) {
       console.error("Cancel booking error:", err);
       alert("Failed to cancel booking / refund");
+    }
+  };
+
+  // #16 — Admin cancels a Pending Hiring: reverts the lead to Survey Completed
+  // and deactivates the payment link.
+  const handleCancelHiring = async () => {
+    try {
+      if (
+        !window.confirm(
+          "Cancel this pending hiring? The lead reverts to Survey Completed and the payment link is deactivated.",
+        )
+      )
+        return;
+      const res = await fetch(
+        `${BASE_URL}/bookings/cancel-pending-hiring/admin`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bookingId: booking._id }),
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.message || `Cancel hiring failed: ${res.status}`);
+      }
+      fetchBooking();
+    } catch (err) {
+      console.error("Cancel hiring error:", err);
+      alert(err?.message || "Failed to cancel hiring");
     }
   };
 
@@ -2409,7 +2442,10 @@ const OngoingLeadDetails = () => {
                     </button>
                   )}
 
-                  {!isrefundAmount && (
+                  {/* #14 — a cancelled lead hides "Cancel Lead" and shows
+                      "Refund" (refund can be initiated any time). Once a refund
+                      is recorded, neither shows. */}
+                  {!isrefundAmount && !isCancelled && (
                     <button
                       className="btn btn-sm btn-danger"
                       style={{
@@ -2420,6 +2456,35 @@ const OngoingLeadDetails = () => {
                       onClick={() => setShowCancelPopup(true)}
                     >
                       Cancel Lead
+                    </button>
+                  )}
+
+                  {!isrefundAmount && isCancelled && (
+                    <button
+                      className="btn btn-sm btn-warning"
+                      style={{
+                        borderRadius: 10,
+                        fontSize: "12px",
+                        fontWeight: 800,
+                      }}
+                      onClick={() => setShowCancelPopup(true)}
+                    >
+                      Refund
+                    </button>
+                  )}
+
+                  {/* #16 — cancel a pending hiring (revert to Survey Completed) */}
+                  {booking?.bookingDetails?.status === "Pending Hiring" && (
+                    <button
+                      className="btn btn-sm btn-outline-danger"
+                      style={{
+                        borderRadius: 10,
+                        fontSize: "12px",
+                        fontWeight: 800,
+                      }}
+                      onClick={handleCancelHiring}
+                    >
+                      Cancel Hiring
                     </button>
                   )}
                 </div>

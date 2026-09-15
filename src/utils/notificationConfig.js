@@ -107,6 +107,15 @@ export const NOTIFICATION_CONFIG = {
     getRoute: (n) => `/lead-details/${n.bookingId}`,
   },
 
+  // #17 — vendor changed the scope of work (amount reduced/added); open the
+  // lead so admin can review/approve.
+  PRICE_CHANGES_REQUEST: {
+    color: "#fd7e14",
+    bg: "#fff4e5",
+    icon: FaExclamationTriangle,
+    getRoute: (n) => `/lead-details/${n.bookingId}`,
+  },
+
   // #9 — reminder fired; open the enquiry/lead it was set on.
   REMINDER: {
     color: "#0d6efd",

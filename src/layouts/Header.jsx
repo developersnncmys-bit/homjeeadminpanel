@@ -18,6 +18,8 @@ const VISIBLE_NOTIFICATION_TYPES = new Set([
   "VENDOR_CANCEL_REQUESTED",
   // #9 — surface reminder alerts when the reminder time arrives.
   "REMINDER",
+  // #17 — vendor scope-of-work change (amount reduced/added) needs admin review.
+  "PRICE_CHANGES_REQUEST",
 ]);
 
 const Header = ({ toggleSidebar }) => {
