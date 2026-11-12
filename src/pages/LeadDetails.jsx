@@ -13,31 +13,44 @@ import { toast } from "react-toastify";
 import EditLeadModal from "./EditLeadModal";
 import { BASE_URL } from "../utils/config";
 
+// Lead-status colour standard (Money & Performance Dashboard spec, p.6).
+// Grey #6c757d · Blue #0d6efd · Green #28a745 · Yellow #ffc107 ·
+// Orange #fd7e14 · Red #dc3545
 const getStatusColor = (status) => {
   if (!status) return "#6c757d";
 
   const s = status.toLowerCase();
 
+  // Grey
+  if (s === "confirmed") return "#6c757d";
+  if (s === "project completed") return "#6c757d";
   if (s === "pending") return "#6c757d";
-  if (s === "confirmed") return "#0d6efd";
-  if (s === "job ongoing") return "#0d6efd";
-  if (s === "survey ongoing") return "#0d6efd";
-  if (s === "survey completed") return "#6f42c1";
-  if (s === "job completed") return "#28a745";
 
+  // Blue
+  if (s === "survey completed") return "#0d6efd";
+
+  // Green
+  if (s === "job completed") return "#28a745";
+  if (s === "hired") return "#28a745";
+
+  // Yellow
+  if (s === "negotiation") return "#ffc107";
+
+  // Orange
+  if (s === "job ongoing") return "#fd7e14";
+  if (s === "survey ongoing") return "#fd7e14";
+  if (s === "project ongoing") return "#fd7e14";
+  if (s === "waiting for final payment") return "#fd7e14";
+  if (s === "pending hiring") return "#fd7e14";
+
+  // Red
   if (s === "customer cancelled") return "#dc3545";
   if (s === "cancelled") return "#dc3545";
-  if (s === "admin cancelled") return "#b02a37";
+  if (s === "customer unreachable") return "#dc3545";
+  if (s === "admin cancelled") return "#dc3545";
 
-  if (s === "customer unreachable") return "#fd7e14";
-  if (s === "pending hiring") return "#fd7e14";
-  if (s === "waiting for final payment") return "#fd7e14";
-
-  if (s === "hired") return "#0056b3";
-  if (s === "project ongoing") return "#0d6efd";
-  if (s === "project completed") return "#28a745";
-
-  if (s === "negotiation") return "#6610f2";
+  // Not in spec — kept from existing behaviour
+  if (s === "rescheduled") return "#6f42c1";
   if (s === "set remainder") return "#20c997";
 
   return "#6c757d"; // default fallback
@@ -474,7 +487,22 @@ const LeadDetails = () => {
                     const siteVisitCharges = d.siteVisitCharges ?? 0;
                     const paymentMethod =
                       d.firstPayment?.method || d.paymentMethod || "N/A";
-                    const paymentId = d.paymentLink?.providerRef || "N/A";
+                    // #5a: show the real razorpay PAYMENT id, not the order id.
+                    // The payment ledger (lead.payments) carries the actual
+                    // payment id (pay_…) for online payments; paymentLink
+                    // .providerRef is often only the order id. Prefer the
+                    // newest real payment id, fall back to the old value.
+                    const paymentId = (() => {
+                      const ledger = Array.isArray(lead?.payments)
+                        ? lead.payments
+                        : [];
+                      for (let i = ledger.length - 1; i >= 0; i--) {
+                        const ref =
+                          ledger[i]?.razorpayPaymentId || ledger[i]?.providerRef;
+                        if (ref && String(ref).startsWith("pay_")) return ref;
+                      }
+                      return d.paymentLink?.providerRef || "N/A";
+                    })();
 
                     const isHousePainting =
                       lead?.serviceType === "house_painting";

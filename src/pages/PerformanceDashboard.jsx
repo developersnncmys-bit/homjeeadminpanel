@@ -403,7 +403,7 @@
 //             }}
 //             style={{ whiteSpace: "nowrap", fontSize: "13px" }}
 //           >
-//             <IoMdSettings /> Setting
+//             <IoMdSettings /> Settings
 //           </Button>
 //         </div>
 //       </div>
@@ -1002,7 +1002,7 @@ const metricLabels = {
 const PerformanceDashboard = () => {
   // UI / Data states
   const [city, setCity] = useState("All Cities");
-  const [period, setPeriod] = useState("All Time");
+  const [period, setPeriod] = useState("This Month");
   const [selectedService, setSelectedService] = useState("House Painters");
 
   const [cityOptions, setCityOptions] = useState([]); // ✅ NEW
@@ -1212,6 +1212,7 @@ const PerformanceDashboard = () => {
             totalLeads: v.totalLeads,
             responded: v.responded,
             jobsStarted: v.survey,
+            surveys: v.survey,
             hirings: v.hired,
             cancelled: v.cancelled,
             responseRate: `${v.responseRate}%`,
@@ -1233,8 +1234,10 @@ const PerformanceDashboard = () => {
             cancelled: v.cancelled,
             // DC: show On-Time % instead of Response %.
             responseRate: `${v.onTimeStartedRate ?? 0}%`,
-            projectsCompleted: v.hired,
-            completionRate: `${v.surveyRate}%`,
+            // #9: "Project Completed" = final payment received (v.completed),
+            // and completion % = completed / total leads (v.completedRate).
+            projectsCompleted: v.completed ?? 0,
+            completionRate: `${v.completedRate ?? 0}%`,
             cancellationRate: `${v.cancellationRate}%`,
             gsv: `₹${v.gsv}`,
             rating: `${v.avgRating} ★`,
@@ -1406,7 +1409,6 @@ const PerformanceDashboard = () => {
             onChange={(e) => setPeriod(e.target.value)}
             style={{ height: "32px", fontSize: "13px" }}
           >
-            <option>All Time</option>
             <option>This Month</option>
             <option>Last Month</option>
           </Form.Select>
@@ -1420,7 +1422,7 @@ const PerformanceDashboard = () => {
             }}
             style={{ whiteSpace: "nowrap", fontSize: "13px" }}
           >
-            <IoMdSettings /> Setting
+            <IoMdSettings /> Settings
           </Button>
         </div>
       </div>
@@ -1698,15 +1700,11 @@ const PerformanceDashboard = () => {
               <tr style={{ fontSize: "12px", textAlign: "center" }}>
                 <th>Vendor Name</th>
                 <th>Total Leads</th>
-                <th>Jobs Started</th>
-                <th>Leads Responded</th>
-                <th>Response %</th>
                 <th>Surveys</th>
                 <th>Survey %</th>
                 <th>Hirings</th>
                 <th>Hiring %</th>
-                <th>GSV</th>
-                <th>Projects Completed</th>
+                <th>Avg GSV</th>
                 <th>Ratings</th>
                 <th>Strikes</th>
               </tr>
@@ -1716,15 +1714,11 @@ const PerformanceDashboard = () => {
                 <tr key={index}>
                   <td>{vendor.name}</td>
                   <td>{vendor.totalLeads}</td>
-                  <td>{vendor.jobsStarted}</td>
-                  <td>{vendor.responded}</td>
-                  <td>{vendor.responseRate}</td>
                   <td>{vendor.surveys}</td>
                   <td>{vendor.surveyRate}</td>
                   <td>{vendor.hirings}</td>
                   <td>{vendor.hiringRate}</td>
                   <td>{vendor.gsv}</td>
-                  <td>{vendor.projects}</td>
                   <td>{vendor.rating}</td>
                   <td>{vendor.strikes}</td>
                 </tr>
@@ -1737,13 +1731,11 @@ const PerformanceDashboard = () => {
               <tr style={{ fontSize: "12px", textAlign: "center" }}>
                 <th>Vendor Name</th>
                 <th>Total Leads</th>
-                <th>Jobs Started</th>
-                <th>Leads Responded</th>
-                <th>On-Time %</th>
                 <th>Projects Completed</th>
                 <th>Completion %</th>
                 <th>Cancelled</th>
                 <th>Cancellation %</th>
+                <th>On-Time %</th>
                 <th>Ratings</th>
                 <th>Strikes</th>
               </tr>
@@ -1753,13 +1745,11 @@ const PerformanceDashboard = () => {
                 <tr key={index}>
                   <td>{vendor.name}</td>
                   <td>{vendor.totalLeads}</td>
-                  <td>{vendor.jobsStarted}</td>
-                  <td>{vendor.responded}</td>
-                  <td>{vendor.responseRate}</td>
                   <td>{vendor.projectsCompleted}</td>
                   <td>{vendor.completionRate}</td>
                   <td>{vendor.cancelled}</td>
                   <td>{vendor.cancellationRate}</td>
+                  <td>{vendor.responseRate}</td>
                   <td>{vendor.rating}</td>
                   <td>{vendor.strikes}</td>
                 </tr>

@@ -10,8 +10,8 @@ import { BASE_URL } from "../utils/config";
 // picked up by a vendor (ongoing), its notification is suppressed so
 // admin's bell only flags items still needing attention.
 const VISIBLE_NOTIFICATION_TYPES = new Set([
+  // #11 — admin is notified for ENQUIRIES only, never for lead creation.
   "NEW_ENQUIRY_CREATED",
-  "NEW_LEAD_CREATED",
   // #5 — surface cancellations so admin can decide/adjust the refund.
   "LEAD_CANCELLED",
   "CUSTOMER_CANCEL_REQUESTED",

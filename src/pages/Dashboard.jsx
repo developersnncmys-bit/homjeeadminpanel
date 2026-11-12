@@ -9,6 +9,9 @@ import { useNavigate } from "react-router-dom";
 const ENQUIRIES_API = `${BASE_URL}/bookings/get-all-enquiries`;
 const LEADS_API = `${BASE_URL}/bookings/get-all-leads`;
 const MANUAL_PAYMENTS_API = `${BASE_URL}/manual-payment/`;
+// #4: the home-page money tiles must read the SAME source as the Money
+// Dashboard so the numbers match. This is the money-dashboard endpoint.
+const MONEY_DASHBOARD_API = `${BASE_URL}/bookings/money-dashboard`;
 
 // ✅ City list API (your working endpoint)
 const CITY_LIST_API = `${BASE_URL}/city/city-list`;
@@ -456,7 +459,7 @@ const Dashboard = () => {
     const endDate = period === "all" ? "" : customDate.end;
 
     try {
-      const [enqRes, leadsRes, manualRes] = await Promise.all([
+      const [enqRes, leadsRes, manualRes, moneyRes] = await Promise.all([
         axios.get(ENQUIRIES_API, {
           params: {
             service: service === "All Services" ? "" : service,
@@ -474,7 +477,20 @@ const Dashboard = () => {
           },
         }),
         axios.get(MANUAL_PAYMENTS_API),
+        // #4: pull Total Sales / Amount Yet to Be Collected from the same
+        // endpoint the Money Dashboard uses, with the same filters, so the two
+        // pages always agree.
+        axios.get(MONEY_DASHBOARD_API, {
+          params: {
+            service: service === "All Services" ? "" : service,
+            city: city === "All Cities" ? "" : city,
+            startDate,
+            endDate,
+          },
+        }),
       ]);
+
+      const moneySummary = moneyRes?.data?.summary || {};
 
       const enqs = enqRes.data?.allEnquies || [];
       const leads = leadsRes.data?.allLeads || [];
@@ -555,16 +571,18 @@ const Dashboard = () => {
       cash += Number(manualSplit.cash || 0);
       online += Number(manualSplit.online || 0);
 
-      const totalSales = bookingPaidTotal + manualPaid;
-      const totalPending = bookingPendingTotal + manualPending;
-      const amountUnpaid = bookingUnpaidTotal + manualPending;
+      // #4: Total Sales & Amount Yet to Be Collected now come straight from the
+      // Money Dashboard endpoint (single source of truth) instead of the old
+      // client-side computeBookingTotals math, which produced different values.
+      // "Amount Unpaid" has been removed from the home page.
+      const totalSales = Number(moneySummary.totalSales || 0);
+      const totalPending = Number(moneySummary.amountYetToBeCollected || 0);
 
       const ongoing = leads.filter(isOngoingLead).length;
 
       setUpdatedKeyMetrics([
         { title: "Total Sales", value: totalSales },
         { title: "Amount Yet to Be Collected", value: totalPending },
-        { title: "Amount Unpaid", value: amountUnpaid },
         { title: "Total Leads", value: leads.length },
         { title: "Ongoing Projects", value: ongoing },
       ]);

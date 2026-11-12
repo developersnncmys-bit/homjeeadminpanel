@@ -14,7 +14,7 @@ import { BASE_URL } from "../utils/config";
 import axios from "axios";
 
 /** ✅ MASTER DATA MUST MATCH DB EXACTLY (case + spelling) */
-const DEEP_CLEANING_DATA = [
+export const DEEP_CLEANING_DATA = [
   {
     category: "Furnished apartment",
     subcategories: [

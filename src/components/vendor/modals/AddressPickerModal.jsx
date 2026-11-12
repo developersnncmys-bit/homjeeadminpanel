@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Modal, Button } from "react-bootstrap";
 import { useDialog } from "../../common/DialogContext";
 
-const GOOGLE_MAPS_API_KEY = "AIzaSyBF48uqsKVyp9P2NlDX-heBJksvvT_8Cqk";
+const GOOGLE_MAPS_API_KEY = "AIzaSyCo2SFPxHrv9Hf9Jroo6X_eb7YgnMVUwJI";
 
 /* ================= SAFE MAPS+PLACES LOADER ================= */
 let __googleMapsPlacesPromise = null;
@@ -620,7 +620,7 @@ export default AddressPickerModal;
 // import { useState, useEffect, useRef } from "react";
 // import { Modal, Button } from "react-bootstrap";
 
-// const GOOGLE_MAPS_API_KEY = "AIzaSyBF48uqsKVyp9P2NlDX-heBJksvvT_8Cqk";
+// const GOOGLE_MAPS_API_KEY = "AIzaSyCo2SFPxHrv9Hf9Jroo6X_eb7YgnMVUwJI";
 
 // const loadGoogleMaps = () =>
 //   new Promise((resolve, reject) => {
@@ -851,7 +851,7 @@ export default AddressPickerModal;
 // import { BASE_URL } from "../../../utils/config";
 // import { useMemo } from "react";
 
-// const GOOGLE_MAPS_API_KEY = "AIzaSyBF48uqsKVyp9P2NlDX-heBJksvvT_8Cqk";
+// const GOOGLE_MAPS_API_KEY = "AIzaSyCo2SFPxHrv9Hf9Jroo6X_eb7YgnMVUwJI";
 
 // const loadGoogleMaps = () =>
 //   new Promise((resolve, reject) => {
@@ -1195,7 +1195,7 @@ export default AddressPickerModal;
 // import { BASE_URL } from "../../../utils/config";
 // import { useMemo } from "react";
 
-// const GOOGLE_MAPS_API_KEY = "AIzaSyBF48uqsKVyp9P2NlDX-heBJksvvT_8Cqk";
+// const GOOGLE_MAPS_API_KEY = "AIzaSyCo2SFPxHrv9Hf9Jroo6X_eb7YgnMVUwJI";
 
 // const loadGoogleMaps = () =>
 //   new Promise((resolve, reject) => {

@@ -8,6 +8,7 @@ import {
   FaEyeSlash,
   FaBell,
   FaTimesCircle,
+  FaFileInvoiceDollar,
 } from "react-icons/fa";
 import { Button, Badge } from "react-bootstrap";
 import EditEnquiryModal from "./EditEnquiryModal";
@@ -573,9 +574,19 @@ const EnquiryDetails = () => {
             </div>
           </div>
 
-          <a href={paymentLinkUrl} target="__blank">
-            Open Payment link
-          </a>
+          {paymentLinkUrl && (
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <a
+                href={paymentLinkUrl}
+                target="_blank"
+                rel="noreferrer"
+                title="Open payment invoice"
+                style={{ color: "#d31a1a", fontSize: 18 }}
+              >
+                <FaFileInvoiceDollar />
+              </a>
+            </div>
+          )}
 
           <hr />
 

@@ -1035,6 +1035,7 @@ import TimePickerModal from "./TimePickerModal";
 import { useNavigate } from "react-router-dom";
 import { MdCancel } from "react-icons/md";
 import { resolveServiceCity } from "../utils/serviceCity";
+import { sortPackagesByCatalog } from "../utils/deepCleaningOrder";
 
 /* ---------------------------
    ✅ SAFE NUMBER HELPERS
@@ -1436,21 +1437,26 @@ const CreateLeadModal = ({ onClose }) => {
   /* -----------------------------------------------------------
      Validation (UNCHANGED)
   ------------------------------------------------------------ */
+  // #11 — Save is enabled as soon as name + phone + category are entered.
+  // Address / slot are OPTIONAL here: if they're missing the record is saved
+  // as an Enquiry (so the panel can nudge the customer to complete booking).
   const isFormValid = () => {
     if (!leadData.contact || leadData.contact.length !== 10) return false;
     if (!existingUser && !leadData.name) return false;
-    if (!leadData.googleAddress) return false;
-    if (!leadData.city) return false;
     if (!leadData.serviceType) return false;
-
-    if (leadData.serviceType === "Deep Cleaning") {
-      if (leadData.packages.length === 0) return false;
-    }
-
-    if (!leadData.slotDate || !leadData.slotTime) return false;
-
+    // Deep Cleaning still needs at least one package chosen to price it.
+    if (leadData.serviceType === "Deep Cleaning" && leadData.packages.length === 0)
+      return false;
     return true;
   };
+
+  // All mandatory booking details present → eligible to be a real Lead.
+  const hasCompleteDetails = () =>
+    !!leadData.googleAddress &&
+    !!leadData.city &&
+    !!leadData.slotDate &&
+    !!leadData.slotTime &&
+    (leadData.serviceType !== "Deep Cleaning" || leadData.packages.length > 0);
 
   /* -----------------------------------------------------------
      Save (FIXED: ensure numbers in payload)
@@ -1464,11 +1470,6 @@ const CreateLeadModal = ({ onClose }) => {
     }
 
     try {
-      if (!isTimeSelectionEnabled) {
-        toast.error("Please complete service & slot selection");
-        return;
-      }
-
       setSaving(true);
 
       const payload = {
@@ -1530,25 +1531,26 @@ const CreateLeadModal = ({ onClose }) => {
         },
 
         formName: "admin panel",
-        isEnquiry: clamp0(leadData.bookingAmount) > 0,
+        // #11 — classify as ENQUIRY when details are incomplete (missing
+        // address/slot) OR a site-visit charge is set (>0). Only a fully-
+        // detailed record with a zero site-visit becomes a real LEAD.
+        isEnquiry: !hasCompleteDetails() || clamp0(leadData.bookingAmount) > 0,
       };
 
       await axios.post(`${BASE_URL}/bookings/create-admin-booking`, payload);
 
+      const savedAsLead =
+        hasCompleteDetails() && clamp0(leadData.bookingAmount) === 0;
+
       toast.success(
-        clamp0(leadData.bookingAmount) === 0
-          ? "Lead created successfully!"
-          : "Enquiry created successfully!",
+        savedAsLead ? "Lead created successfully!" : "Enquiry created successfully!",
       );
 
       onClose();
       // Navigate via the router only. A hard window.location.reload() here
       // issued a real GET for the SPA path and showed the host's 404
       // ("page doesn't exist"); the list page refetches on mount anyway (#2).
-      navigate(
-        clamp0(leadData.bookingAmount) === 0 ? "/newleads" : "/enquiries",
-        { replace: true },
-      );
+      navigate(savedAsLead ? "/newleads" : "/enquiries", { replace: true });
     } catch (err) {
       console.error(err);
       toast.error(err?.response?.data?.message || "Save failed");
@@ -1800,7 +1802,10 @@ const CreateLeadModal = ({ onClose }) => {
               <input
                 name="bookingAmount"
                 type="number"
-                value={leadData.bookingAmount}
+                // Bind as a string so React overwrites a stale "010" in the DOM
+                // (react-dom skips the update when the number input's text is
+                // numerically equal to the state number) (#1).
+                value={String(leadData.bookingAmount)}
                 onChange={handleChange}
                 style={styles.input}
               />
@@ -1841,10 +1846,11 @@ const CreateLeadModal = ({ onClose }) => {
                   }
                 >
                   <option value="">Select Package</option>
-                  {categories
-                    .filter((p) => p.category === selectedSubCategory)
-                    // Show packages cheapest-first, like the website (#8).
-                    .sort((a, b) => toNum(a.totalAmount) - toNum(b.totalAmount))
+                  {sortPackagesByCatalog(
+                    categories.filter((p) => p.category === selectedSubCategory),
+                  )
+                    // Ordered exactly like the Deep Cleaning products section
+                    // (catalog order), not by price (#8).
                     .map((p) => (
                       <option key={p._id} value={p._id}>
                         {p.name} – ₹{toNum(p.totalAmount)}
@@ -1916,7 +1922,7 @@ const CreateLeadModal = ({ onClose }) => {
                 name="bookingAmount"
                 type="number"
                 style={styles.input}
-                value={leadData.bookingAmount}
+                value={String(leadData.bookingAmount)}
                 onChange={handleChange}
               />
 

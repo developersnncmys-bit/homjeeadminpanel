@@ -294,14 +294,8 @@ const OTPVerification = () => {
           )}
         </div>
 
-        {/* Debug OTP display (only in development) */}
-        {receivedOtp  && (
-          <div style={styles.debugBox}>
-            <p style={styles.debugText}>
-              Debug OTP: <strong>{receivedOtp}</strong>
-            </p>
-          </div>
-        )}
+        {/* Debug OTP display removed — the OTP is delivered over WhatsApp and
+            must never be shown on screen. */}
 
         <div style={styles.otpContainer}>
           <input

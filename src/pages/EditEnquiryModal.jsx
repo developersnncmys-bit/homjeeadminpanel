@@ -2006,6 +2006,10 @@ export default function EditEnquiryModal({
 
   // House painting fields
   const [siteVisitCharges, setSiteVisitCharges] = useState(0);
+  // True once the enquiry's real site-visit charge has been loaded. Until then
+  // siteVisitCharges is the default 0, which would briefly show the
+  // "Convert to Lead" button even on enquiries that actually have a charge.
+  const [svcLoaded, setSvcLoaded] = useState(false);
   const [firstPaid, setFirstPaid] = useState(false);
   const [secondPaid, setSecondPaid] = useState(false);
   const [finalPaid, setFinalPaid] = useState(false);
@@ -2105,6 +2109,39 @@ export default function EditEnquiryModal({
     (s) => s.category?.toLowerCase() === "house painting",
   );
 
+  // #3 — a House Painting enquiry (esp. a website one) may not have a stored
+  // site-visit charge yet, so it shows ₹0. Fall back to the city's configured
+  // Site Visit Charge so the edit page reflects the real value.
+  useEffect(() => {
+    if (!isHousePaintingService) return;
+    // Admin has manually edited Site Visit Charges — respect their value
+    // (including an intentional 0 for lead conversion); don't auto-fill.
+    if (svcTouchedRef.current) return;
+    if (Number(siteVisitCharges) > 0) return;
+    const c = String(city || "").trim();
+    if (!c) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `${BASE_URL}/service/get-pricing-config/city/${encodeURIComponent(c)}`,
+        );
+        const data = await res.json();
+        const cfg = Number(data?.data?.siteVisitCharge);
+        if (!cancelled && Number.isFinite(cfg) && cfg > 0) {
+          setSiteVisitCharges(cfg);
+          setDraftSiteVisit(String(cfg));
+        }
+      } catch (e) {
+        console.error("site-visit config fetch failed:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isHousePaintingService, siteVisitCharges, city]);
+
   const hasDeepCleaningService = services.some(
     (s) => (s.category || "").toLowerCase() === "deep cleaning",
   );
@@ -2135,6 +2172,10 @@ export default function EditEnquiryModal({
   // Refs
   const initialLoadRef = useRef(true);
   const initialSlotLoadedRef = useRef(false);
+  // Once the admin manually touches Site Visit Charges (opens the editor or
+  // applies a value), stop the city-config fallback from overwriting it — so
+  // the admin can edit freely, including setting it to 0 to convert to lead.
+  const svcTouchedRef = useRef(false);
 
   // ---------------------------------------
   // Form Valid
@@ -2341,6 +2382,7 @@ export default function EditEnquiryModal({
       const svc = Number(bookingDetails?.siteVisitCharges || 0);
       setSiteVisitCharges(svc);
       setDraftSiteVisit(String(svc || 0));
+      setSvcLoaded(true);
 
       const firstP = bookingDetails?.firstPayment || {};
       const secondP = bookingDetails?.secondPayment || {};
@@ -2711,6 +2753,7 @@ export default function EditEnquiryModal({
       return;
     }
 
+    svcTouchedRef.current = true;
     setSiteVisitCharges(v);
     setServices((prev) =>
       prev.map((s) =>
@@ -2779,7 +2822,7 @@ export default function EditEnquiryModal({
   // -------------------------------------------------------
   // HANDLE SAVE (unchanged except pricingMode influences sent finalTotal)
   // -------------------------------------------------------
-  const handleSave = async () => {
+  const handleSave = async (convertToLead = false) => {
     if (!enquiry?.bookingId) return;
 
     try {
@@ -2907,6 +2950,25 @@ export default function EditEnquiryModal({
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || "Update failed.");
 
+      // Convert to Lead: the edits (incl. siteVisitCharges=0) are now saved;
+      // flip the enquiry into a lead. The backend's status endpoint also
+      // REMOVES the "New Enquiry" admin notification on this transition (#11),
+      // so it can no longer reopen a stale enquiry page.
+      if (convertToLead) {
+        const convRes = await fetch(
+          `${BASE_URL}/bookings/${enquiry.bookingId}/status`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ field: "isEnquiry", value: false }),
+          },
+        );
+        const convData = await convRes.json().catch(() => ({}));
+        if (!convRes.ok || convData?.success === false) {
+          throw new Error(convData?.message || "Convert to lead failed.");
+        }
+      }
+
       onUpdated?.(data?.booking);
       onClose?.();
     } catch (err) {
@@ -2946,10 +3008,19 @@ export default function EditEnquiryModal({
             {editingSiteVisit ? (
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Form.Control
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   size="sm"
                   value={draftSiteVisit}
-                  onChange={(e) => setDraftSiteVisit(e.target.value)}
+                  onChange={(e) => {
+                    // Digits only, kept as a plain string. A controlled
+                    // type="number" input was fighting the browser's number
+                    // normalisation and blocking edits; a filtered text input
+                    // lets the admin clear it and type freely (incl. 0).
+                    const cleaned = String(e.target.value).replace(/[^\d]/g, "");
+                    setDraftSiteVisit(cleaned);
+                  }}
+                  placeholder="0"
                   style={{ width: 120 }}
                 />
                 <FaCheck style={{ cursor: "pointer", color: "green" }} onClick={applyManualSiteVisit} />
@@ -2968,6 +3039,7 @@ export default function EditEnquiryModal({
                   <FaEdit
                     style={{ cursor: "pointer", color: "#7F6663" }}
                     onClick={() => {
+                      svcTouchedRef.current = true;
                       setDraftSiteVisit(String(siteVisitCharges || 0));
                       setEditingSiteVisit(true);
                     }}
@@ -3333,7 +3405,7 @@ export default function EditEnquiryModal({
 
             return (
               <Row key={idx} className="g-2 mb-3 align-items-end">
-                <Col md={isHP ? 4 : 3}>
+                <Col md={isHP ? 12 : 3}>
                   <Form.Label className="mb-1">Category *</Form.Label>
                   <Form.Control value={s.category} disabled size="sm" />
                 </Col>
@@ -3376,19 +3448,22 @@ export default function EditEnquiryModal({
                   </Col>
                 )}
 
-                <Col md={isHP ? 4 : 2}>
-                  <Form.Label className="mb-1">{isDC ? "Price (₹)" : "Site Visit (₹)"}</Form.Label>
-                  <Form.Control
-                    size="sm"
-                    type="number"
-                    value={s.price}
-                    onChange={(e) => onServiceChange(idx, "price", e.target.value)}
-                    // Editable for enquiries (per #6), but the House Painting
-                    // Site Visit charge is LOCKED once the record is a lead
-                    // (lead mode) — the lead is already generated (#12).
-                    disabled={!canEditServices || (isHP && leadMode)}
-                  />
-                </Col>
+                {/* #6 — the House Painting "Site Visit (₹)" box next to Category
+                    is removed; the effective Site Visit charge is the one in the
+                    Payment Summary below (editing this box changed nothing). For
+                    Deep Cleaning the per-service Price stays. */}
+                {!isHP && (
+                  <Col md={2}>
+                    <Form.Label className="mb-1">Price (₹)</Form.Label>
+                    <Form.Control
+                      size="sm"
+                      type="number"
+                      value={s.price}
+                      onChange={(e) => onServiceChange(idx, "price", e.target.value)}
+                      disabled={!canEditServices}
+                    />
+                  </Col>
+                )}
 
                 {!isHP && (
                   <Col md={1} className="text-end">
@@ -3421,9 +3496,29 @@ export default function EditEnquiryModal({
           <Button variant="secondary" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={handleSave} disabled={saving || !isFormValid}>
+          <Button
+            variant="danger"
+            onClick={() => handleSave(false)}
+            disabled={saving || !isFormValid}
+          >
             {saving ? "Saving..." : "Save Changes"}
           </Button>
+          {/* Convert to Lead — shown for a House Painting enquiry once the
+              Site Visit Charges are set to 0 (site visit done). Saves the
+              edits and flips the enquiry into a lead in one step; the backend
+              also drops the stale "New Enquiry" notification (#11). */}
+          {svcLoaded &&
+            !leadMode &&
+            isHousePaintingService &&
+            Number(siteVisitCharges) === 0 && (
+              <Button
+                variant="success"
+                onClick={() => handleSave(true)}
+                disabled={saving || !isFormValid}
+              >
+                {saving ? "Please wait..." : "Convert to Lead"}
+              </Button>
+            )}
         </Modal.Footer>
       </Modal>
 

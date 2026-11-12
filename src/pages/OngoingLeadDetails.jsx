@@ -16,33 +16,44 @@ import EditLeadModal from "./EditLeadModal";
 import RescheduleTimePickerModal from "./RescheduleTimePickerModal";
 import AmountChangeCard from "./AmountChangeCard";
 
+// Lead-status colour standard (Money & Performance Dashboard spec, p.6).
+// Grey #6c757d · Blue #0d6efd · Green #28a745 · Yellow #ffc107 ·
+// Orange #fd7e14 · Red #dc3545
 const getStatusColor = (status) => {
   if (!status) return "#6c757d";
   const s = String(status).toLowerCase();
 
+  // Grey
+  if (s === "confirmed") return "#6c757d";
+  if (s === "project completed") return "#6c757d";
   if (s === "pending") return "#6c757d";
-  if (s === "confirmed") return "#0d6efd";
-  if (s === "job ongoing") return "#0d6efd";
-  if (s === "survey ongoing") return "#0d6efd";
-  if (s === "survey completed") return "#6f42c1";
-  if (s === "job completed") return "#28a745";
 
+  // Blue
+  if (s === "survey completed") return "#0d6efd";
+
+  // Green
+  if (s === "job completed") return "#28a745";
+  if (s === "hired") return "#28a745";
+
+  // Yellow
+  if (s === "negotiation") return "#ffc107";
+
+  // Orange
+  if (s === "job ongoing") return "#fd7e14";
+  if (s === "survey ongoing") return "#fd7e14";
+  if (s === "project ongoing") return "#fd7e14";
+  if (s === "waiting for final payment") return "#fd7e14";
+  if (s === "pending hiring") return "#fd7e14";
+
+  // Red
   if (s === "customer cancelled") return "#dc3545";
   if (s === "cancelled") return "#dc3545";
-  if (s === "admin cancelled") return "#b02a37";
-  if (s === "cancelled rescheduled") return "#b02a37";
+  if (s === "customer unreachable") return "#dc3545";
+  if (s === "admin cancelled") return "#dc3545";
+  if (s === "cancelled rescheduled") return "#dc3545";
 
+  // Not in spec — kept from existing behaviour
   if (s === "rescheduled") return "#6f42c1";
-
-  if (s === "customer unreachable") return "#fd7e14";
-  if (s === "pending hiring") return "#fd7e14";
-  if (s === "waiting for final payment") return "#fd7e14";
-
-  if (s === "hired") return "#0056b3";
-  if (s === "project ongoing") return "#0d6efd";
-  if (s === "project completed") return "#28a745";
-
-  if (s === "negotiation") return "#6610f2";
   if (s === "set remainder") return "#20c997";
 
   return "#6c757d";
@@ -92,6 +103,18 @@ const OngoingLeadDetails = () => {
   const [cashPaymentPopup, setCashPaymentPopup] = useState(false);
   const [refundAmount, setRefundAmount] = useState("");
   const [cashPayment, setCashPayment] = useState("");
+
+  // #5 — standalone Refund (refund-only, does NOT cancel the lead)
+  const [showRefundPopup, setShowRefundPopup] = useState(false);
+  const [refundInput, setRefundInput] = useState("");
+  const [refunding, setRefunding] = useState(false);
+  // #16 — styled Cancel Hiring confirm popup (replaces window.confirm)
+  const [showCancelHiringPopup, setShowCancelHiringPopup] = useState(false);
+  const [cancellingHiring, setCancellingHiring] = useState(false);
+  // #5 — styled result popup for cancel/refund/hiring outcomes (no ugly alerts)
+  const [resultPopup, setResultPopup] = useState(null); // { title, message, ok }
+  const showResult = (title, message, ok = true) =>
+    setResultPopup({ title, message, ok });
 
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [changingVendor, setChangingVendor] = useState(false);
@@ -351,8 +374,31 @@ const OngoingLeadDetails = () => {
   const isNewLead =
     !!booking && !isCancelled && !acceptedInvite && !booking?.assignedProfessional?.acceptedDate;
 
-  const paidAmount = booking?.bookingDetails?.paidAmount ?? 0;
+  // #7a — Total Amount Paid by the customer includes the House Painting
+  // site-visit charge (tracked separately from paidAmount). Including it here
+  // lets the admin process a complete refund (installments + site visit).
+  const paidAmount =
+    Number(booking?.bookingDetails?.paidAmount ?? 0) +
+    Number(booking?.bookingDetails?.siteVisitCharges ?? 0);
   const isrefundAmount = (booking?.bookingDetails?.refundAmount ?? 0) > 0;
+  // #5 — how much can still be refunded = paid − already-refunded.
+  const previousRefund = Number(booking?.bookingDetails?.refundAmount ?? 0);
+  const refundable = Math.max(0, Number(paidAmount) - previousRefund);
+
+  // #14 — "Cancel Lead" is allowed only before the vendor starts the
+  // survey/job. Once started (Survey/Job Ongoing and beyond) the button is
+  // removed. New leads (Pending) and pre-start ongoing leads can cancel.
+  const CANCEL_ALLOWED_STATUSES = [
+    "pending",
+    "confirmed",
+    "rescheduled",
+    "customer unreachable",
+  ];
+  const canCancelLead =
+    !isCancelled &&
+    CANCEL_ALLOWED_STATUSES.includes(
+      String(booking?.bookingDetails?.status || "").toLowerCase(),
+    );
 
   const totalAmount = booking?.bookingDetails?.finalTotal;
   const fullamountYetToPay = booking?.bookingDetails?.amountYetToPay;
@@ -1149,7 +1195,18 @@ const OngoingLeadDetails = () => {
         Number.isNaN(refundNum) ||
         refundNum < 0
       ) {
-        alert("Please enter valid refund amount");
+        showResult("Invalid Amount", "Please enter a valid refund amount.", false);
+        return;
+      }
+      // #5 — never refund more than the customer paid minus prior refunds.
+      if (refundNum > refundable) {
+        showResult(
+          "Amount Too High",
+          `Refund cannot exceed the refundable amount (₹${refundable.toLocaleString(
+            "en-IN",
+          )}).`,
+          false,
+        );
         return;
       }
 
@@ -1181,28 +1238,76 @@ const OngoingLeadDetails = () => {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        throw new Error(`Cancel API failed: ${res.status}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.message || `Cancel API failed: ${res.status}`);
       }
 
       setShowCancelPopup(false);
-      fetchBooking();
+      await fetchBooking();
+      showResult(
+        "Lead Cancelled",
+        Number(refundAmount) > 0
+          ? `The lead has been cancelled and a refund of ₹${Number(
+              refundAmount,
+            ).toLocaleString("en-IN")} has been recorded.`
+          : "The lead has been cancelled.",
+      );
     } catch (err) {
       console.error("Cancel booking error:", err);
-      alert("Failed to cancel booking / refund");
+      showResult(
+        "Action Failed",
+        err?.message || "Failed to cancel booking / refund.",
+        false,
+      );
+    }
+  };
+
+  // #5 — Standalone refund: records a refund WITHOUT cancelling the lead.
+  // Validates the amount never exceeds paid − previous refunds.
+  const handleRefund = async () => {
+    const amt = Number(refundInput);
+    if (refundInput === "" || Number.isNaN(amt) || amt <= 0) {
+      alert("Please enter a valid refund amount");
+      return;
+    }
+    if (amt > refundable) {
+      alert(`Refund cannot exceed ₹${refundable.toLocaleString("en-IN")}`);
+      return;
+    }
+    try {
+      setRefunding(true);
+      const res = await fetch(`${BASE_URL}/bookings/refund/admin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingId: booking._id, refundAmount: amt }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data?.success === false) {
+        throw new Error(data?.message || `Refund failed: ${res.status}`);
+      }
+      setShowRefundPopup(false);
+      setRefundInput("");
+      await fetchBooking();
+      showResult(
+        "Refund Processed",
+        `A refund of ₹${amt.toLocaleString(
+          "en-IN",
+        )} has been recorded and a WhatsApp update has been sent to the customer.`,
+      );
+    } catch (err) {
+      console.error("Refund error:", err);
+      showResult("Refund Failed", err?.message || "Failed to process refund.", false);
+    } finally {
+      setRefunding(false);
     }
   };
 
   // #16 — Admin cancels a Pending Hiring: reverts the lead to Survey Completed
-  // and deactivates the payment link.
+  // and deactivates the payment link. Confirmation is a styled popup.
   const handleCancelHiring = async () => {
     try {
-      if (
-        !window.confirm(
-          "Cancel this pending hiring? The lead reverts to Survey Completed and the payment link is deactivated.",
-        )
-      )
-        return;
+      setCancellingHiring(true);
       const res = await fetch(
         `${BASE_URL}/bookings/cancel-pending-hiring/admin`,
         {
@@ -1215,10 +1320,17 @@ const OngoingLeadDetails = () => {
       if (!res.ok || data?.success === false) {
         throw new Error(data?.message || `Cancel hiring failed: ${res.status}`);
       }
-      fetchBooking();
+      setShowCancelHiringPopup(false);
+      await fetchBooking();
+      showResult(
+        "Hiring Cancelled",
+        "The pending hiring has been cancelled and the lead reverted to Survey Completed.",
+      );
     } catch (err) {
       console.error("Cancel hiring error:", err);
-      alert(err?.message || "Failed to cancel hiring");
+      showResult("Action Failed", err?.message || "Failed to cancel hiring.", false);
+    } finally {
+      setCancellingHiring(false);
     }
   };
 
@@ -1575,6 +1687,16 @@ const OngoingLeadDetails = () => {
                         </strong>
                       </p>
 
+                      {/* #5 — show the refund right below Site Visit Charges */}
+                      {isrefundAmount && (
+                        <p style={{ fontSize: 12, marginBottom: "1%" }}>
+                          <span className="text-muted">Amount Refunded:</span>{" "}
+                          <strong>
+                            ₹{Number(refundAmount).toLocaleString("en-IN")}
+                          </strong>
+                        </p>
+                      )}
+
                       <div style={{ marginTop: 10 }}>
                         {booking?.payments?.map((p, idx) => {
                           const payments = Array.isArray(booking?.payments)
@@ -1777,38 +1899,15 @@ const OngoingLeadDetails = () => {
                         </p>
                       )}
 
-                      {isCancelled && isrefundAmount && (
-                        <div
-                          style={{
-                            marginTop: 6,
-                            padding: "6px 10px",
-                            borderLeft: "4px solid #dc3545",
-                            backgroundColor: "#fdecea",
-                            borderRadius: 4,
-                          }}
-                        >
-                          <p style={{ fontSize: 12, marginBottom: 2 }}>
-                            <span className="fw-bold text-danger">
-                              Refund Amount
-                            </span>
-                          </p>
-                          <p
-                            className="fw-bold text-dark mb-0"
-                            style={{ fontSize: 14 }}
-                          >
-                            ₹{refundAmount.toLocaleString("en-IN")}
-                            <span
-                              style={{
-                                fontSize: 11,
-                                marginLeft: 6,
-                                color: "#6c757d",
-                                fontWeight: 500,
-                              }}
-                            >
-                              (initiated)
-                            </span>
-                          </p>
-                        </div>
+                      {/* #5 — show refunds as a plain line like Total/Paid
+                          (any refund, not only on cancelled leads). */}
+                      {isrefundAmount && (
+                        <p style={{ fontSize: 12, marginBottom: 8 }}>
+                          <span className="text-muted">Amount Refunded:</span>{" "}
+                          <strong>
+                            ₹{Number(refundAmount).toLocaleString("en-IN")}
+                          </strong>
+                        </p>
                       )}
 
                       {/* Map Payments */}
@@ -2442,10 +2541,10 @@ const OngoingLeadDetails = () => {
                     </button>
                   )}
 
-                  {/* #14 — a cancelled lead hides "Cancel Lead" and shows
-                      "Refund" (refund can be initiated any time). Once a refund
-                      is recorded, neither shows. */}
-                  {!isrefundAmount && !isCancelled && (
+                  {/* #14 — Cancel Lead only before the vendor starts the
+                      survey/job (new + pre-start ongoing leads). It cancels the
+                      lead exactly as before. */}
+                  {canCancelLead && (
                     <button
                       className="btn btn-sm btn-danger"
                       style={{
@@ -2453,13 +2552,22 @@ const OngoingLeadDetails = () => {
                         fontSize: "12px",
                         fontWeight: 800,
                       }}
-                      onClick={() => setShowCancelPopup(true)}
+                      onClick={() => {
+                        // #5 — the input captures the ADDITIONAL refund now
+                        // (backend accumulates), so start it empty rather than
+                        // pre-filling the already-refunded total.
+                        setRefundAmount("");
+                        setShowCancelPopup(true);
+                      }}
                     >
                       Cancel Lead
                     </button>
                   )}
 
-                  {!isrefundAmount && isCancelled && (
+                  {/* #5 — Refund is now its OWN action: it only records a refund
+                      and never cancels the lead. Available whenever the customer
+                      has an un-refunded balance (incl. New Leads). */}
+                  {refundable > 0 && (
                     <button
                       className="btn btn-sm btn-warning"
                       style={{
@@ -2467,7 +2575,10 @@ const OngoingLeadDetails = () => {
                         fontSize: "12px",
                         fontWeight: 800,
                       }}
-                      onClick={() => setShowCancelPopup(true)}
+                      onClick={() => {
+                        setRefundInput("");
+                        setShowRefundPopup(true);
+                      }}
                     >
                       Refund
                     </button>
@@ -2482,7 +2593,7 @@ const OngoingLeadDetails = () => {
                         fontSize: "12px",
                         fontWeight: 800,
                       }}
-                      onClick={handleCancelHiring}
+                      onClick={() => setShowCancelHiringPopup(true)}
                     >
                       Cancel Hiring
                     </button>
@@ -3712,23 +3823,39 @@ const OngoingLeadDetails = () => {
             >
               <div
                 className="bg-white p-4 rounded shadow"
-                style={{ width: "350px" }}
+                style={{ width: "360px" }}
               >
                 <h6 className="fw-bold mb-3">Cancel Lead</h6>
 
-                <p>Amount to refund : {paidAmount}</p>
+                {/* #5 — same fields + over-refund guard as the Refund popup. */}
+                <p className="mb-1" style={{ fontSize: 13 }}>
+                  Total paid by customer :{" "}
+                  <strong>₹{Number(paidAmount).toLocaleString("en-IN")}</strong>
+                </p>
+                {previousRefund > 0 && (
+                  <p className="mb-1" style={{ fontSize: 13 }}>
+                    Already refunded :{" "}
+                    <strong>₹{previousRefund.toLocaleString("en-IN")}</strong>
+                  </p>
+                )}
+                <p className="mb-2" style={{ fontSize: 13 }}>
+                  Refundable :{" "}
+                  <strong>₹{refundable.toLocaleString("en-IN")}</strong>
+                </p>
+
                 <label className="form-label">Refund Amount</label>
                 <input
                   type="number"
                   className="form-control mb-3"
                   placeholder="Enter Refund Amount"
                   value={refundAmount}
-                  max={paidAmount}
+                  max={refundable}
                   min={0}
                   onChange={(e) => {
                     try {
                       const value = Number(e.target.value);
-                      if (value <= paidAmount) setRefundAmount(value);
+                      if (value >= 0 && value <= refundable)
+                        setRefundAmount(value);
                     } catch (err) {
                       console.error(err);
                     }
@@ -3748,6 +3875,137 @@ const OngoingLeadDetails = () => {
                     onClick={handleCancelBooking}
                   >
                     Save & Cancel Booking
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* #5 — Refund popup (refund only, does not cancel) */}
+          {showRefundPopup && (
+            <div
+              className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
+              style={{ background: "rgba(0,0,0,0.4)", zIndex: 9999 }}
+            >
+              <div
+                className="bg-white p-4 rounded shadow"
+                style={{ width: "360px" }}
+              >
+                <h6 className="fw-bold mb-3">Refund</h6>
+
+                <p className="mb-1" style={{ fontSize: 13 }}>
+                  Total paid by customer :{" "}
+                  <strong>₹{Number(paidAmount).toLocaleString("en-IN")}</strong>
+                </p>
+                {previousRefund > 0 && (
+                  <p className="mb-1" style={{ fontSize: 13 }}>
+                    Already refunded :{" "}
+                    <strong>
+                      ₹{previousRefund.toLocaleString("en-IN")}
+                    </strong>
+                  </p>
+                )}
+                <p className="mb-2" style={{ fontSize: 13 }}>
+                  Refundable :{" "}
+                  <strong>₹{refundable.toLocaleString("en-IN")}</strong>
+                </p>
+
+                <label className="form-label">Refund Amount</label>
+                <input
+                  type="number"
+                  className="form-control mb-3"
+                  placeholder="Enter Refund Amount"
+                  value={refundInput}
+                  max={refundable}
+                  min={0}
+                  onChange={(e) => setRefundInput(e.target.value)}
+                />
+
+                <div className="d-flex justify-content-end gap-2">
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => {
+                      setShowRefundPopup(false);
+                      setRefundInput("");
+                    }}
+                    disabled={refunding}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-sm btn-warning"
+                    onClick={handleRefund}
+                    disabled={refunding}
+                  >
+                    {refunding ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* #5 — Styled result popup for cancel / refund / hiring outcomes */}
+          {resultPopup && (
+            <div
+              className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
+              style={{ background: "rgba(0,0,0,0.4)", zIndex: 10000 }}
+            >
+              <div
+                className="bg-white p-4 rounded shadow text-center"
+                style={{ width: "360px" }}
+              >
+                <div
+                  style={{ fontSize: 34, marginBottom: 6 }}
+                  aria-hidden="true"
+                >
+                  {resultPopup.ok ? "✅" : "⚠️"}
+                </div>
+                <h6 className="fw-bold mb-2">{resultPopup.title}</h6>
+                <p style={{ fontSize: 13, color: "#444" }}>
+                  {resultPopup.message}
+                </p>
+                <button
+                  className={`btn btn-sm ${
+                    resultPopup.ok ? "btn-success" : "btn-secondary"
+                  } mt-2 px-4`}
+                  onClick={() => setResultPopup(null)}
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* #16 — Cancel Hiring confirm popup (styled) */}
+          {showCancelHiringPopup && (
+            <div
+              className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
+              style={{ background: "rgba(0,0,0,0.4)", zIndex: 9999 }}
+            >
+              <div
+                className="bg-white p-4 rounded shadow"
+                style={{ width: "360px" }}
+              >
+                <h6 className="fw-bold mb-2">Cancel Hiring</h6>
+                <p style={{ fontSize: 13, color: "#444" }}>
+                  Cancel this pending hiring? The lead reverts to{" "}
+                  <strong>Survey Completed</strong> and the payment link is
+                  deactivated. The vendor can mark hiring again afterwards.
+                </p>
+                <div className="d-flex justify-content-end gap-2 mt-3">
+                  <button
+                    className="btn btn-sm btn-secondary"
+                    onClick={() => setShowCancelHiringPopup(false)}
+                    disabled={cancellingHiring}
+                  >
+                    No, keep it
+                  </button>
+                  <button
+                    className="btn btn-sm btn-danger"
+                    onClick={handleCancelHiring}
+                    disabled={cancellingHiring}
+                  >
+                    {cancellingHiring ? "Cancelling..." : "Yes, Cancel Hiring"}
                   </button>
                 </div>
               </div>
