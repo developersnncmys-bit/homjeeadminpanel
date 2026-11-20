@@ -5,6 +5,7 @@ import { FaMapMarkerAlt } from "react-icons/fa";
 import { Button } from "react-bootstrap";
 import { BASE_URL } from "../utils/config";
 import { aliasesForServiceCity } from "../utils/serviceCity";
+import { getStatusColor } from "../utils/statusColor";
 
 const OngoingLeads = () => {
   const navigate = useNavigate();
@@ -416,8 +417,9 @@ const OngoingLeads = () => {
 
                     <Button
                       style={{
-                        backgroundColor:
-                          lead.status === "Ongoing" ? "#E24F00" : "#FFC107",
+                        // #11 — colour the badge by the actual status (was
+                        // hardcoded yellow for every status).
+                        backgroundColor: getStatusColor(lead.status),
                         borderColor: "transparent",
                         borderRadius: "20px",
                         fontSize: "12px",
