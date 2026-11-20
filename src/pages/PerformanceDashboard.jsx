@@ -1119,7 +1119,10 @@ const PerformanceDashboard = () => {
       setCityLoading(true);
       setCityError("");
       try {
-        const res = await axios.get("http://localhost:9000/api/city/city-list");
+        // #1 City filter — was hardcoded to http://localhost:9000, so in the
+        // deployed panel the city list never loaded and the filter was unusable.
+        // Use the configured API base URL instead.
+        const res = await axios.get(`${BASE_URL}/city/city-list`);
 
         const list = Array.isArray(res?.data?.data) ? res.data.data : [];
         const cities = list

@@ -374,12 +374,20 @@ const OngoingLeadDetails = () => {
   const isNewLead =
     !!booking && !isCancelled && !acceptedInvite && !booking?.assignedProfessional?.acceptedDate;
 
-  // #7a — Total Amount Paid by the customer includes the House Painting
-  // site-visit charge (tracked separately from paidAmount). Including it here
-  // lets the admin process a complete refund (installments + site visit).
+  // #7a — Total Amount Paid = the actual money received, taken from the payments
+  // ledger (which already includes the site-visit charge when it was collected).
+  // The old `paidAmount + siteVisitCharges` double-counted the site visit for
+  // bookings whose paidAmount already included it (a ₹2 charge showed as ₹4 for
+  // both paid and refundable totals). Fall back to the milestone + site-visit
+  // figures only for legacy bookings that have no payments ledger.
+  const ledgerPaid = Array.isArray(booking?.payments)
+    ? booking.payments.reduce((s, p) => s + Number(p?.amount ?? 0), 0)
+    : 0;
   const paidAmount =
-    Number(booking?.bookingDetails?.paidAmount ?? 0) +
-    Number(booking?.bookingDetails?.siteVisitCharges ?? 0);
+    ledgerPaid > 0
+      ? ledgerPaid
+      : Number(booking?.bookingDetails?.paidAmount ?? 0) +
+        Number(booking?.bookingDetails?.siteVisitCharges ?? 0);
   const isrefundAmount = (booking?.bookingDetails?.refundAmount ?? 0) > 0;
   // #5 — how much can still be refunded = paid − already-refunded.
   const previousRefund = Number(booking?.bookingDetails?.refundAmount ?? 0);
